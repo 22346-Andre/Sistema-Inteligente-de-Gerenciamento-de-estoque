@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { FileText, Download, BarChart3, Package, TrendingUp, CheckCircle2, AlertTriangle, Calendar } from 'lucide-react';
+import { FileText, Download, BarChart3, Package, AlertTriangle, Calendar } from 'lucide-react';
 import { relatorioService } from '../services/relatorio.service';
 import { toast } from 'sonner';
 
@@ -11,14 +11,13 @@ interface Relatorio {
   descricao: string;
   icone: any;
   tipo: string;
-  cor: 'blue' | 'purple' | 'red' | 'orange' | 'green' | 'emerald';
+  cor: 'blue' | 'purple' | 'red' | 'green';
   metodo: (inicio?: string, fim?: string) => Promise<void>;
 }
 
 export default function Relatorios() {
   const [gerando, setGerando] = useState<string | null>(null);
   
-  // 🟢 ESTADOS DO FILTRO DE DATA
   const [dataInicio, setDataInicio] = useState<string>('');
   const [dataFim, setDataFim] = useState<string>('');
 
@@ -61,19 +60,48 @@ export default function Relatorios() {
     }
   ];
 
+  // Validação de data: verifica se a data é válida
+  const isValidDate = (dateString: string): boolean => {
+    if (!dateString) return true; // campo vazio é válido
+    
+    const date = new Date(dateString);
+    return date instanceof Date && !isNaN(date.getTime());
+  };
+
+  // Verifica se dataInicio é anterior a dataFim
+  const isDateRangeValid = (inicio: string, fim: string): boolean => {
+    if (!inicio || !fim) return true;
+    
+    const dataInicioObj = new Date(inicio);
+    const dataFimObj = new Date(fim);
+    
+    return dataInicioObj <= dataFimObj;
+  };
+
   const handleGerarRelatorio = async (relatorio: Relatorio) => {
-    // 🟢 Validação de Data: Se preencher uma, tem de preencher a outra
+    // Validação 1: Se preencher uma, tem de preencher a outra
     if ((dataInicio && !dataFim) || (!dataInicio && dataFim)) {
       toast.warning('Por favor, preencha a Data Inicial e a Data Final.');
       return;
     }
 
+    // Validação 2: Verifica se as datas são válidas
+    if (!isValidDate(dataInicio) || !isValidDate(dataFim)) {
+      toast.error('Datas inválidas. Por favor, insira datas válidas.');
+      return;
+    }
+
+    // Validação 3: Verifica se a data inicial é anterior à data final
+    if (dataInicio && dataFim && !isDateRangeValid(dataInicio, dataFim)) {
+      toast.error('A data inicial não pode ser posterior à data final.');
+      return;
+    }
+
     setGerando(relatorio.tipo);
     try {
-      // Passa as datas para o serviço (se estiverem vazias, o Java gera o histórico total)
       await relatorio.metodo(dataInicio, dataFim);
       
-      toast.success(`📄 Relatório "${relatorio.titulo}" gerado!`, {
+      toast.success(`Relatório "${relatorio.titulo}" gerado!`, {
         description: 'O download começará automaticamente.'
       });
     } catch (error) {
@@ -84,17 +112,12 @@ export default function Relatorios() {
     }
   };
 
-  // 🟢 NOVA FUNÇÃO: Adaptada ao sistema de temas.
-  // Usa rgba para garantir que os tons de fundo são suaves em qualquer tema (claro ou escuro)
-  // e mantém a cor viva no texto/ícone.
   const getCorClasses = (cor: Relatorio['cor']) => {
     const map = {
       blue: { bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-500/20', hoverBorder: 'hover:border-blue-500/50' },
       purple: { bg: 'bg-purple-500/10', text: 'text-purple-500', border: 'border-purple-500/20', hoverBorder: 'hover:border-purple-500/50' },
       red: { bg: 'bg-red-500/10', text: 'text-red-500', border: 'border-red-500/20', hoverBorder: 'hover:border-red-500/50' },
-      orange: { bg: 'bg-orange-500/10', text: 'text-orange-500', border: 'border-orange-500/20', hoverBorder: 'hover:border-orange-500/50' },
-      green: { bg: 'bg-green-500/10', text: 'text-green-500', border: 'border-green-500/20', hoverBorder: 'hover:border-green-500/50' },
-      emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20', hoverBorder: 'hover:border-emerald-500/50' }
+      green: { bg: 'bg-green-500/10', text: 'text-green-500', border: 'border-green-500/20', hoverBorder: 'hover:border-green-500/50' }
     };
     return map[cor] || map.blue;
   };
@@ -104,15 +127,14 @@ export default function Relatorios() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">Central de Relatórios</h1>
-          <p className="text-muted-foreground">Exporte relatórios completos em PDF</p>
+          <p className="text-muted-foreground">Exporte relatórios em PDF</p>
         </div>
 
-        {/* 🟢 COMPONENTE DE FILTRO DE DATA */}
         <Card className="bg-card border-border shadow-sm w-full md:w-auto">
           <CardContent className="p-4 flex flex-col sm:flex-row items-center gap-4">
             <div className="flex items-center gap-2 text-foreground font-medium">
               <Calendar className="h-5 w-5 text-primary" />
-              Filtrar Período:
+              Período:
             </div>
             <div className="flex items-center gap-2">
               <input 
@@ -138,54 +160,6 @@ export default function Relatorios() {
         </Card>
       </div>
 
-      {/* Cards de Estatísticas Rápidas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-card border-border shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Relatórios Disponíveis</CardTitle>
-            <FileText className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{relatorios.length}</div>
-            <p className="text-xs text-muted-foreground">Tipos de relatórios</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Download Automático</CardTitle>
-            <Download className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">PDF</div>
-            <p className="text-xs text-muted-foreground">Formato profissional</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Geração</CardTitle>
-            <TrendingUp className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">Instantânea</div>
-            <p className="text-xs text-muted-foreground">Em tempo real</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Dados Atualizados</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">100%</div>
-            <p className="text-xs text-muted-foreground">Informações reais</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Grid de Relatórios */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {relatorios.map((relatorio) => {
           const temaCores = getCorClasses(relatorio.cor);
@@ -231,25 +205,6 @@ export default function Relatorios() {
           );
         })}
       </div>
-
-      {/* Informações e Dicas */}
-      <Card className="bg-primary/5 border-primary/20 shadow-sm">
-        <CardContent className="pt-6">
-          <div className="flex gap-4">
-            <div className="h-12 w-12 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-              <CheckCircle2 className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="font-semibold text-lg text-foreground">Sobre os Relatórios</h3>
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <p>✅ <strong className="text-foreground">Formato:</strong> Todos os relatórios são gerados em PDF profissional</p>
-                <p>✅ <strong className="text-foreground">Dados em tempo real:</strong> Informações sempre atualizadas do seu estoque</p>
-                <p>✅ <strong className="text-foreground">Filtros:</strong> Utilize o filtro de datas acima para limitar o período das movimentações</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -40,7 +40,7 @@ export default function Perfil() {
   const handleAlterarSenha = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 🚨 NOVA REGRA DE SEGURANÇA: Bloqueia se a nova senha for igual à atual
+    // SEGURANÇA: Bloqueia se a nova senha for igual à atual
     if (senhaAtual === novaSenha) {
       toast.error('A nova senha não pode ser igual à sua senha atual!');
       return;

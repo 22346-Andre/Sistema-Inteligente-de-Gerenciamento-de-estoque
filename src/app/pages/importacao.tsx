@@ -84,7 +84,7 @@ export default function Importacao() {
     } catch (error: any) {
       console.error('Erro na importação:', error);
       
-      // 🟢 Proteção contra ecrã preto
+      //  Proteção contra ecrã preto
       let msgErro = 'Erro desconhecido ao processar o arquivo no servidor.';
       if (error.response && error.response.data) {
           if (typeof error.response.data === 'string') {
