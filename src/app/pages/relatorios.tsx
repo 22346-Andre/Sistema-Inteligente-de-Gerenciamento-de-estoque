@@ -60,12 +60,16 @@ export default function Relatorios() {
     }
   ];
 
-  // Validação de data: verifica se a data é válida
+  // Validação de data: verifica se a data é válida e está em um limite realista
   const isValidDate = (dateString: string): boolean => {
     if (!dateString) return true; // campo vazio é válido
     
     const date = new Date(dateString);
-    return date instanceof Date && !isNaN(date.getTime());
+    if (!(date instanceof Date) || isNaN(date.getTime())) return false;
+
+    // Garante que o ano digitado tem 4 dígitos (ex: entre 2000 e 2099)
+    const year = date.getFullYear();
+    return year >= 2000 && year <= 2099;
   };
 
   // Verifica se dataInicio é anterior a dataFim
@@ -139,6 +143,8 @@ export default function Relatorios() {
             <div className="flex items-center gap-2">
               <input 
                 type="date" 
+                min="2000-01-01"
+                max="2099-12-31"
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary text-foreground [color-scheme:light_dark]"
                 value={dataInicio}
                 onChange={(e) => setDataInicio(e.target.value)}
@@ -146,6 +152,8 @@ export default function Relatorios() {
               <span className="text-muted-foreground">até</span>
               <input 
                 type="date" 
+                min="2000-01-01"
+                max="2099-12-31"
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-primary text-foreground [color-scheme:light_dark]"
                 value={dataFim}
                 onChange={(e) => setDataFim(e.target.value)}
