@@ -13,19 +13,45 @@ import api from '../services/api';
 
 interface Funcionario { id: number; nome: string; email: string; perfil: string; dono?: boolean; }
 
-const CARGO_INFO: Record<string, { label: string; icone: ReactElement; badge: string }> = {
-  ADMIN: { label: 'Gerente / Admin', icone: <Shield className="h-4 w-4" />, badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
-  SUPER_ADMIN: { label: 'Gerente / Admin', icone: <Shield className="h-4 w-4" />, badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
-  ESTOQUISTA: { label: 'Estoquista', icone: <Package className="h-4 w-4" />, badge: 'bg-orange-500/10 text-orange-700 dark:text-orange-400' },
-  CAIXA: { label: 'Caixa', icone: <ShoppingCart className="h-4 w-4" />, badge: 'bg-green-500/10 text-green-700 dark:text-green-400' },
+const CARGO_INFO: Record<string, { label: string; icone: ReactElement; badge: string; ring: string }> = {
+  ADMIN: { label: 'Gerente / Admin', icone: <Shield className="h-4 w-4" />, badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-400', ring: 'ring-blue-500/30' },
+  SUPER_ADMIN: { label: 'Gerente / Admin', icone: <Shield className="h-4 w-4" />, badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-400', ring: 'ring-blue-500/30' },
+  ESTOQUISTA: { label: 'Estoquista', icone: <Package className="h-4 w-4" />, badge: 'bg-orange-500/10 text-orange-700 dark:text-orange-400', ring: 'ring-orange-500/30' },
+  CAIXA: { label: 'Caixa', icone: <ShoppingCart className="h-4 w-4" />, badge: 'bg-green-500/10 text-green-700 dark:text-green-400', ring: 'ring-green-500/30' },
 };
 
+const AVATAR_PALETTE = [
+  'bg-blue-500/15 text-blue-700 dark:text-blue-400',
+  'bg-orange-500/15 text-orange-700 dark:text-orange-400',
+  'bg-green-500/15 text-green-700 dark:text-green-400',
+  'bg-purple-500/15 text-purple-700 dark:text-purple-400',
+  'bg-pink-500/15 text-pink-700 dark:text-pink-400',
+  'bg-teal-500/15 text-teal-700 dark:text-teal-400',
+];
+
 function infoCargo(perfil: string) {
-  return CARGO_INFO[perfil] ?? { label: perfil, icone: <Users className="h-4 w-4" />, badge: 'bg-muted text-muted-foreground' };
+  return CARGO_INFO[perfil] ?? { label: perfil, icone: <Users className="h-4 w-4" />, badge: 'bg-muted text-muted-foreground', ring: 'ring-border' };
+}
+
+function iniciais(nome: string) {
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return '?';
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+}
+
+function corAvatar(id: number) {
+  return AVATAR_PALETTE[id % AVATAR_PALETTE.length];
 }
 
 export default function Configuracoes() {
-  const { user } = useAuth() as { user?: { id?: string; email?: string } };
+  // Fix: `useAuth()` retorna um tipo próprio do contexto que não tem overlap
+  // suficiente com o shape que usamos aqui, então o TS acusa "Conversion of
+  // type X to type Y may be a mistake...". Passar por `unknown` primeiro é a
+  // forma seguro de fazer essa conversão quando temos certeza do shape real
+  // devolvido em runtime.
+  const { user } = (useAuth() as unknown) as { user?: { id?: string; email?: string } };
+
   const [empresaData, setEmpresaData] = useState({ cnpj: '', razaoSocial: '', nomeFantasia: '', email: '', celular: '', endereco: '', cidade: '', estado: '' });
   const [salvandoEmpresa, setSalvandoEmpresa] = useState(false);
 
@@ -185,12 +211,12 @@ export default function Configuracoes() {
 
       <Tabs defaultValue="empresa" className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="empresa" className="gap-2"><Building2 className="h-4 w-4" /> Empresa</TabsTrigger>
-          <TabsTrigger value="equipe" className="gap-2"><Users className="h-4 w-4" /> Equipe</TabsTrigger>
+          <TabsTrigger value="empresa" className="gap-2"><Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Empresa</TabsTrigger>
+          <TabsTrigger value="equipe" className="gap-2"><Users className="h-4 w-4 text-purple-600 dark:text-purple-400" /> Equipe</TabsTrigger>
         </TabsList>
 
         <TabsContent value="empresa" className="space-y-4">
-          <Card className="bg-card border-border">
+          <Card className="bg-card border-border border-l-4 border-l-blue-500">
             <CardHeader><CardTitle>Dados da Empresa</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -214,7 +240,7 @@ export default function Configuracoes() {
         </TabsContent>
 
         <TabsContent value="equipe" className="space-y-4">
-          <Card className="bg-card border-border">
+          <Card className="bg-card border-border border-l-4 border-l-purple-500">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Gestão de Equipe</CardTitle>
@@ -302,8 +328,15 @@ export default function Configuracoes() {
                       return (
                         <TableRow key={func.id}>
                           <TableCell className="font-medium text-foreground">
-                            {func.nome}
-                            {souEu && <span className="ml-2 text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">(você)</span>}
+                            <div className="flex items-center gap-3">
+                              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-2 ${corAvatar(func.id)} ${cargo.ring}`}>
+                                {iniciais(func.nome)}
+                              </div>
+                              <span>
+                                {func.nome}
+                                {souEu && <span className="ml-2 text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">(você)</span>}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell><div className="flex items-center gap-2 text-foreground"><Mail className="h-4 w-4 text-muted-foreground" />{func.email}</div></TableCell>
                           <TableCell>
@@ -320,7 +353,7 @@ export default function Configuracoes() {
                             ) : (
                               <div className="flex justify-end gap-2">
                                 <Button size="sm" variant="outline" onClick={() => { setFuncionarioEditando(func); setDialogEditFuncOpen(true); }}>
-                                  <Edit className="h-4 w-4" />
+                                  <Edit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                 </Button>
                                 <Button
                                   size="sm" variant="outline"
