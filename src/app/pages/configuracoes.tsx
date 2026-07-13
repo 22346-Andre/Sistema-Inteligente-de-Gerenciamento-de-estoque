@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -13,7 +13,7 @@ import api from '../services/api';
 
 interface Funcionario { id: number; nome: string; email: string; perfil: string; dono?: boolean; }
 
-const CARGO_INFO: Record<string, { label: string; icone: React.ReactElement; badge: string }> = {
+const CARGO_INFO: Record<string, { label: string; icone: ReactElement; badge: string }> = {
   ADMIN: { label: 'Gerente / Admin', icone: <Shield className="h-4 w-4" />, badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
   SUPER_ADMIN: { label: 'Gerente / Admin', icone: <Shield className="h-4 w-4" />, badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
   ESTOQUISTA: { label: 'Estoquista', icone: <Package className="h-4 w-4" />, badge: 'bg-orange-500/10 text-orange-700 dark:text-orange-400' },
@@ -25,7 +25,7 @@ function infoCargo(perfil: string) {
 }
 
 export default function Configuracoes() {
-  const { user } = useAuth();
+  const { user } = useAuth() as { user?: { id?: string; email?: string } };
   const [empresaData, setEmpresaData] = useState({ cnpj: '', razaoSocial: '', nomeFantasia: '', email: '', celular: '', endereco: '', cidade: '', estado: '' });
   const [salvandoEmpresa, setSalvandoEmpresa] = useState(false);
 
@@ -120,11 +120,8 @@ export default function Configuracoes() {
     }
   };
 
-  const ehMinhaConta = (func: Funcionario) => {
-    if (!user) return false;
-    const userId = typeof user.id === 'string' ? Number(user.id) : user.id;
-    return (userId !== undefined && userId === func.id) || (!!user.email && user.email === func.email);
-  };
+  const ehMinhaConta = (func: Funcionario) =>
+    (user?.id !== undefined && String(user.id) === String(func.id)) || (!!user?.email && user.email === func.email);
 
   const handleSalvarEdicaoFuncionario = async () => {
     if (!funcionarioEditando) return;
