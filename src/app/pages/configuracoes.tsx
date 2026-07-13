@@ -44,6 +44,24 @@ function corAvatar(id: number) {
   return AVATAR_PALETTE[id % AVATAR_PALETTE.length];
 }
 
+// Aceita só dígitos (remove letras e símbolos digitados por engano) e
+// formata como (99) 99999-9999 / (99) 9999-9999 enquanto a pessoa digita.
+// Trava em 11 dígitos, que é o máximo de um celular brasileiro com DDD + 9.
+function formatarCelular(valor: string) {
+  const digitos = valor.replace(/\D/g, '').slice(0, 11);
+  if (digitos.length <= 2) return digitos.replace(/^(\d*)/, '($1');
+  if (digitos.length <= 6) return digitos.replace(/^(\d{2})(\d*)/, '($1) $2');
+  if (digitos.length <= 10) return digitos.replace(/^(\d{2})(\d{4})(\d*)/, '($1) $2-$3');
+  return digitos.replace(/^(\d{2})(\d{5})(\d*)/, '($1) $2-$3');
+}
+
+// Um celular válido tem 10 dígitos (fixo) ou 11 (celular com 9º dígito).
+// Campo vazio é aceito, já que o celular não é obrigatório no cadastro.
+function celularValido(valor: string) {
+  const digitos = valor.replace(/\D/g, '');
+  return digitos.length === 0 || digitos.length === 10 || digitos.length === 11;
+}
+
 export default function Configuracoes() {
   // Fix: `useAuth()` retorna um tipo próprio do contexto que não tem overlap
   // suficiente com o shape que usamos aqui, então o TS acusa "Conversion of
@@ -87,6 +105,10 @@ export default function Configuracoes() {
   const handleSalvarEmpresa = async () => {
     if (!empresaData.razaoSocial.trim()) {
       toast.error('Informe a Razão Social.');
+      return;
+    }
+    if (!celularValido(empresaData.celular)) {
+      toast.error('Informe um celular válido, com DDD (ex: (99) 98142-0899).');
       return;
     }
     if (salvandoEmpresa) return;
@@ -227,7 +249,16 @@ export default function Configuracoes() {
                 <div className="space-y-2"><Label>Razão Social</Label><Input value={empresaData.razaoSocial} onChange={e => setEmpresaData({ ...empresaData, razaoSocial: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Nome Fantasia</Label><Input value={empresaData.nomeFantasia} onChange={e => setEmpresaData({ ...empresaData, nomeFantasia: e.target.value })} /></div>
                 <div className="space-y-2"><Label>E-mail</Label><Input type="email" value={empresaData.email} onChange={e => setEmpresaData({ ...empresaData, email: e.target.value })} /></div>
-                <div className="space-y-2"><Label>Celular</Label><Input value={empresaData.celular} onChange={e => setEmpresaData({ ...empresaData, celular: e.target.value })} /></div>
+                <div className="space-y-2">
+                  <Label>Celular</Label>
+                  <Input
+                    value={empresaData.celular}
+                    onChange={e => setEmpresaData({ ...empresaData, celular: formatarCelular(e.target.value) })}
+                    placeholder="(99) 98142-0899"
+                    inputMode="numeric"
+                    maxLength={15}
+                  />
+                </div>
                 <div className="space-y-2"><Label>Endereço</Label><Input value={empresaData.endereco} onChange={e => setEmpresaData({ ...empresaData, endereco: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Cidade</Label><Input value={empresaData.cidade} onChange={e => setEmpresaData({ ...empresaData, cidade: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Estado</Label><Input value={empresaData.estado} onChange={e => setEmpresaData({ ...empresaData, estado: e.target.value.toUpperCase() })} maxLength={2} /></div>
