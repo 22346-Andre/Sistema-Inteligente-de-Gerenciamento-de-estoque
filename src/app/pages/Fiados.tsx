@@ -5,19 +5,29 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
-import { MessageCircle, CheckCircle, Clock, Search, PlusCircle, AlertCircle, CalendarClock, Pencil } from 'lucide-react';
+import { MessageCircle, CheckCircle, Clock, Search, PlusCircle, AlertCircle, CalendarClock, Pencil, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { fiadoService, ContaReceber } from '../services/fiado.service';
 
-export default function Fiados() {
+// Formata uma data com segurança: se vier vazia/nula ou inválida do backend,
+// mostra um traço em vez de quebrar a tela inteira com uma exceção.
+function formatarData(dataString?: string | null): string {
+  if (!dataString) return '—';
+  const data = parseISO(dataString);
+  if (!isValid(data)) return '—';
+  return format(data, "dd 'de' MMM, yyyy", { locale: ptBR });
+}
+
+export default function ContasReceber() {
   const [contas, setContas] = useState<ContaReceber[]>([]);
   const [sugestoes, setSugestoes] = useState<ContaReceber[]>([]);
   const [loading, setLoading] = useState(true);
   const [termoBusca, setTermoBusca] = useState('');
+  const [salvando, setSalvando] = useState(false);
 
-  // Estados do Modal de Novo Fiado
+  // Estados do Modal de Nova Conta
   const [modalAberto, setModalAberto] = useState(false);
   const [novoCliente, setNovoCliente] = useState('');
   const [novoTelefone, setNovoTelefone] = useState('');
@@ -48,32 +58,56 @@ export default function Fiados() {
       setContas(todas);
       setSugestoes(paraCobrar);
     } catch (e) {
-      toast.error('Erro ao carregar a caderneta.');
+      toast.error('Erro ao carregar as contas a receber.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSalvarFiado = async () => {
-    if (!novoCliente || !novoTelefone || !novoValor || !novaDataVencimento) {
-      return toast.error("Preencha os campos obrigatórios (Nome, Telefone, Valor, Vencimento)");
+  // Validação compartilhada pelos formulários de criar e editar conta.
+  const validarFormulario = (cliente: string, telefone: string, valor: string, vencimento: string, exigirTelefone: boolean) => {
+    if (!cliente.trim()) {
+      toast.error('Informe o nome do cliente.');
+      return false;
     }
+    if (exigirTelefone && telefone.replace(/\D/g, '').length < 10) {
+      toast.error('Informe um WhatsApp válido, com DDD (mínimo 10 dígitos).');
+      return false;
+    }
+    const valorNumerico = parseFloat(valor);
+    if (!valor || isNaN(valorNumerico) || valorNumerico <= 0) {
+      toast.error('Informe um valor maior que zero.');
+      return false;
+    }
+    if (!vencimento) {
+      toast.error('Informe a data combinada para pagamento.');
+      return false;
+    }
+    return true;
+  };
 
+  const handleSalvarFiado = async () => {
+    if (!validarFormulario(novoCliente, novoTelefone, novoValor, novaDataVencimento, true)) return;
+    if (salvando) return;
+
+    setSalvando(true);
     try {
-      toast.loading("A registar fiado...", { id: 'fiado' });
+      toast.loading('A registrar conta...', { id: 'fiado' });
       await fiadoService.registrarFiado({
-        nomeCliente: novoCliente,
+        nomeCliente: novoCliente.trim(),
         telefoneCliente: novoTelefone.replace(/\D/g, ''),
         valor: parseFloat(novoValor),
-        descricao: novaDescricao || 'Compras diversas',
+        descricao: novaDescricao.trim() || 'Compras diversas',
         dataVencimento: novaDataVencimento,
       });
-      toast.success("Adicionado à Caderneta com sucesso!", { id: 'fiado' });
+      toast.success('Adicionado às Contas a Receber com sucesso!', { id: 'fiado' });
       setModalAberto(false);
       setNovoCliente(''); setNovoTelefone(''); setNovoValor(''); setNovaDescricao(''); setNovaDataVencimento('');
       carregarDados();
     } catch (e) {
-      toast.error("Erro ao salvar", { id: 'fiado' });
+      toast.error('Erro ao salvar.', { id: 'fiado' });
+    } finally {
+      setSalvando(false);
     }
   };
 
@@ -90,24 +124,27 @@ export default function Fiados() {
 
   // Função para salvar a edição
   const handleSalvarEdicao = async () => {
-    if (!editId || !editCliente || !editValor || !editDataVencimento) {
-      return toast.error("Preencha os campos obrigatórios (Nome, Valor, Vencimento)");
-    }
+    if (!editId) return;
+    if (!validarFormulario(editCliente, editTelefone, editValor, editDataVencimento, false)) return;
+    if (salvando) return;
 
+    setSalvando(true);
     try {
-      toast.loading("A atualizar fiado...", { id: 'edit-fiado' });
+      toast.loading('A atualizar conta...', { id: 'edit-fiado' });
       await fiadoService.atualizarFiado(editId, {
-        nomeCliente: editCliente,
+        nomeCliente: editCliente.trim(),
         telefoneCliente: editTelefone.replace(/\D/g, ''),
         valor: parseFloat(editValor),
-        descricao: editDescricao || 'Compras diversas',
+        descricao: editDescricao.trim() || 'Compras diversas',
         dataVencimento: editDataVencimento,
       });
-      toast.success("Registo atualizado com sucesso!", { id: 'edit-fiado' });
+      toast.success('Registro atualizado com sucesso!', { id: 'edit-fiado' });
       setModalEdicaoAberto(false);
       carregarDados();
     } catch (e) {
-      toast.error("Erro ao atualizar o registo.", { id: 'edit-fiado' });
+      toast.error('Erro ao atualizar o registro.', { id: 'edit-fiado' });
+    } finally {
+      setSalvando(false);
     }
   };
 
@@ -115,19 +152,19 @@ export default function Fiados() {
     try {
       const link = await fiadoService.obterLinkWhatsApp(contaId);
       window.open(link, '_blank');
-      toast.success("WhatsApp aberto! Envie a mensagem ao cliente.");
+      toast.success('WhatsApp aberto! Envie a mensagem ao cliente.');
     } catch (e) {
-      toast.error("Erro ao gerar link de cobrança.");
+      toast.error('Erro ao gerar link de cobrança.');
     }
   };
 
   const handleMarcarPago = async (contaId: number) => {
     try {
       await fiadoService.marcarComoPago(contaId);
-      toast.success("Boa! Conta marcada como paga.");
+      toast.success('Boa! Conta marcada como paga.');
       carregarDados();
     } catch (e) {
-      toast.error("Erro ao atualizar status.");
+      toast.error('Erro ao atualizar status.');
     }
   };
 
@@ -137,51 +174,64 @@ export default function Fiados() {
       toast.success(`Lembrete adiado em ${dias} dias.`);
       carregarDados();
     } catch (e) {
-      toast.error("Erro ao adiar cobrança.");
+      toast.error('Erro ao adiar cobrança.');
     }
   };
 
-  const formatarData = (dataString: string) => {
-    return format(parseISO(dataString), "dd 'de' MMM, yyyy", { locale: ptBR });
-  };
+  const contasFiltradas = contas.filter(c =>
+    c.nomeCliente.toLowerCase().includes(termoBusca.toLowerCase()) ||
+    (c.telefoneCliente || '').includes(termoBusca)
+  );
 
-  const contasFiltradas = contas.filter(c => c.nomeCliente.toLowerCase().includes(termoBusca.toLowerCase()));
+  const totalEmAberto = contas
+    .filter(c => c.status !== 'PAGO')
+    .reduce((acc, c) => acc + c.valor, 0);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Caderneta / Fiado</h1>
-          <p className="text-muted-foreground">Gira quem lhe deve e faça cobranças automáticas pelo WhatsApp.</p>
+          <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+            <Wallet className="h-7 w-7 text-blue-500" /> Contas a Receber
+          </h1>
+          <p className="text-muted-foreground">Gerencie quem lhe deve e faça cobranças automáticas pelo WhatsApp.</p>
         </div>
-        <Button onClick={() => setModalAberto(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
-          <PlusCircle className="w-5 h-5 mr-2" /> Novo Fiado
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="text-right hidden sm:block">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Total em aberto</p>
+            <p className="text-xl font-bold text-red-600 dark:text-red-400">R$ {totalEmAberto.toFixed(2)}</p>
+          </div>
+          <Button onClick={() => setModalAberto(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <PlusCircle className="w-5 h-5 mr-2" /> Nova Conta
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="sugestoes" className="w-full">
-        <TabsList className="mb-6 bg-card border shadow-sm">
-          <TabsTrigger value="sugestoes" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+        <TabsList className="mb-6 bg-card border border-border shadow-sm">
+          <TabsTrigger value="sugestoes" className="data-[state=active]:bg-orange-500/10 data-[state=active]:text-orange-700 dark:data-[state=active]:text-orange-400">
             <AlertCircle className="w-4 h-4 mr-2" /> Para Cobrar Hoje ({sugestoes.length})
           </TabsTrigger>
           <TabsTrigger value="todas">
-            <Clock className="w-4 h-4 mr-2" /> Caderneta Completa
+            <Clock className="w-4 h-4 mr-2" /> Todas as Contas
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="sugestoes">
-          <Card className="border-orange-200 shadow-md">
-            <CardHeader className="bg-orange-50/50 border-b border-orange-100">
-              <CardTitle className="text-orange-800 flex items-center">
+          <Card className="border-orange-500/20 shadow-md">
+            <CardHeader className="bg-orange-500/5 border-b border-orange-500/10">
+              <CardTitle className="text-orange-700 dark:text-orange-400 flex items-center">
                 <MessageCircle className="w-5 h-5 mr-2" /> Chegou a hora de cobrar!
               </CardTitle>
               <CardDescription>Estes clientes já chegaram à data combinada de lembrete (ou estão atrasados).</CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              {loading ? <p>A carregar...</p> : sugestoes.length === 0 ? (
+              {loading ? (
+                <div className="text-center py-10 text-muted-foreground">A carregar...</div>
+              ) : sugestoes.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground">
-                  <CheckCircle className="w-12 h-12 mx-auto text-green-300 mb-3" />
-                  <p className="text-lg font-medium text-gray-700">Tudo limpo!</p>
+                  <CheckCircle className="w-12 h-12 mx-auto text-green-400/60 mb-3" />
+                  <p className="text-lg font-medium text-foreground">Tudo em dia!</p>
                   <p>Não há clientes para cobrar hoje.</p>
                 </div>
               ) : (
@@ -195,24 +245,24 @@ export default function Fiados() {
                             <h3 className="font-bold text-lg text-foreground">{conta.nomeCliente}</h3>
                             <p className="text-sm text-muted-foreground">{conta.descricao}</p>
                           </div>
-                          <span className="font-black text-xl text-red-600">R$ {conta.valor.toFixed(2)}</span>
+                          <span className="font-black text-xl text-red-600 dark:text-red-400">R$ {conta.valor.toFixed(2)}</span>
                         </div>
-                        <div className="text-sm text-gray-600 mb-4 bg-muted p-2 rounded flex justify-between items-center">
-                          <p>Venceu em: <strong>{formatarData(conta.dataVencimento)}</strong></p>
+                        <div className="text-sm text-muted-foreground mb-4 bg-muted p-2 rounded flex justify-between items-center">
+                          <p>Venceu em: <strong className="text-foreground">{formatarData(conta.dataVencimento)}</strong></p>
                           <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-500 hover:text-blue-700" onClick={() => handleAbrirEdicao(conta)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <Button onClick={() => handleCobrarWhatsApp(conta.id)} className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white">
                             <MessageCircle className="w-4 h-4 mr-2" /> Cobrar no WhatsApp
                           </Button>
                           <div className="grid grid-cols-2 gap-2">
-                            <Button variant="outline" onClick={() => handleAdiarCobranca(conta.id, 5)} className="text-gray-600 text-xs">
+                            <Button variant="outline" onClick={() => handleAdiarCobranca(conta.id, 5)} className="text-muted-foreground text-xs">
                               <CalendarClock className="w-3 h-3 mr-1" /> Pediu +5 dias
                             </Button>
-                            <Button variant="outline" onClick={() => handleMarcarPago(conta.id)} className="text-green-600 border-green-200 hover:bg-green-50 text-xs">
+                            <Button variant="outline" onClick={() => handleMarcarPago(conta.id)} className="text-green-600 dark:text-green-400 border-green-500/30 hover:bg-green-500/10 text-xs">
                               <CheckCircle className="w-3 h-3 mr-1" /> Recebi
                             </Button>
                           </div>
@@ -230,10 +280,10 @@ export default function Fiados() {
           <Card>
             <CardHeader>
               <div className="flex justify-between items-center flex-wrap gap-4">
-                <CardTitle>Todos os Registos</CardTitle>
+                <CardTitle>Todos os Registros</CardTitle>
                 <div className="relative w-full sm:w-72">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input placeholder="Procurar cliente..." className="pl-9" value={termoBusca} onChange={e => setTermoBusca(e.target.value)} />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Procurar por nome ou telefone..." className="pl-9" value={termoBusca} onChange={e => setTermoBusca(e.target.value)} />
                 </div>
               </div>
             </CardHeader>
@@ -252,28 +302,28 @@ export default function Fiados() {
                   </TableHeader>
                   <TableBody>
                     {contasFiltradas.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhum registo encontrado.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado.</TableCell></TableRow>
                     ) : (
                       contasFiltradas.map(conta => (
                         <TableRow key={conta.id} className={conta.status === 'PAGO' ? 'opacity-60 bg-muted' : ''}>
-                          <TableCell className="font-medium">{conta.nomeCliente}<br/><span className="text-xs text-gray-400">{conta.telefoneCliente}</span></TableCell>
+                          <TableCell className="font-medium">{conta.nomeCliente}<br/><span className="text-xs text-muted-foreground">{conta.telefoneCliente || 'sem telefone'}</span></TableCell>
                           <TableCell className="max-w-[200px] truncate text-sm">{conta.descricao}</TableCell>
-                          <TableCell className="text-sm text-gray-600">
-                            {conta.status === 'PAGO' ? '-' : formatarData(conta.dataProximaCobranca)}
+                          <TableCell className="text-sm text-muted-foreground">
+                            {conta.status === 'PAGO' ? '—' : formatarData(conta.dataProximaCobranca)}
                           </TableCell>
                           <TableCell>
                             <span className={`px-2 py-1 rounded-full text-xs font-bold 
-                              ${conta.status === 'PAGO' ? 'bg-green-100 text-green-700' : 
-                                conta.status === 'ATRASADO' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                              ${conta.status === 'PAGO' ? 'bg-green-500/10 text-green-700 dark:text-green-400' :
+                                conta.status === 'ATRASADO' ? 'bg-red-500/10 text-red-700 dark:text-red-400' : 'bg-orange-500/10 text-orange-700 dark:text-orange-400'}`}>
                               {conta.status}
                             </span>
                           </TableCell>
-                          <TableCell className={`text-right font-bold ${conta.status === 'PAGO' ? 'text-green-600 line-through' : 'text-red-600'}`}>
+                          <TableCell className={`text-right font-bold ${conta.status === 'PAGO' ? 'text-green-600 dark:text-green-400 line-through' : 'text-red-600 dark:text-red-400'}`}>
                             R$ {conta.valor.toFixed(2)}
                           </TableCell>
                           <TableCell className="text-center">
-                            <Button variant="ghost" size="icon" onClick={() => handleAbrirEdicao(conta)} disabled={conta.status === 'PAGO'} title="Editar registo">
-                              <Pencil className="w-4 h-4 text-blue-600" />
+                            <Button variant="ghost" size="icon" onClick={() => handleAbrirEdicao(conta)} disabled={conta.status === 'PAGO'} title="Editar registro">
+                              <Pencil className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -287,24 +337,24 @@ export default function Fiados() {
         </TabsContent>
       </Tabs>
 
-      {/* MODAL NOVO FIADO */}
+      {/* MODAL NOVA CONTA */}
       <Dialog open={modalAberto} onOpenChange={setModalAberto}>
         <DialogContent className="sm:max-w-md w-[95%]">
           <DialogHeader>
-            <DialogTitle>Anotar na Caderneta</DialogTitle>
+            <DialogTitle>Nova Conta a Receber</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
               <label className="text-sm font-medium">Nome do Cliente</label>
-              <Input placeholder="Ex: Sr. João da Padaria" value={novoCliente} onChange={e => setNovoCliente(e.target.value)} />
+              <Input placeholder="Ex: João Silva" value={novoCliente} onChange={e => setNovoCliente(e.target.value)} />
             </div>
             <div>
-              <label className="text-sm font-medium">WhatsApp do Cliente (Apenas números)</label>
+              <label className="text-sm font-medium">WhatsApp do Cliente (com DDD)</label>
               <Input placeholder="Ex: 11988887777" type="tel" value={novoTelefone} onChange={e => setNovoTelefone(e.target.value)} />
             </div>
             <div>
               <label className="text-sm font-medium">Valor Total (R$)</label>
-              <Input placeholder="Ex: 150.50" type="number" step="0.01" value={novoValor} onChange={e => setNovoValor(e.target.value)} />
+              <Input placeholder="Ex: 150.50" type="number" min="0.01" step="0.01" value={novoValor} onChange={e => setNovoValor(e.target.value)} />
             </div>
             <div>
               <label className="text-sm font-medium">Resumo da Compra</label>
@@ -317,22 +367,24 @@ export default function Fiados() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setModalAberto(false)} className="w-full sm:w-auto">Cancelar</Button>
-            <Button onClick={handleSalvarFiado} className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto">Salvar na Caderneta</Button>
+            <Button variant="outline" onClick={() => setModalAberto(false)} className="w-full sm:w-auto" disabled={salvando}>Cancelar</Button>
+            <Button onClick={handleSalvarFiado} className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto" disabled={salvando}>
+              {salvando ? 'Salvando...' : 'Salvar Conta'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* MODAL EDITAR FIADO */}
+      {/* MODAL EDITAR CONTA */}
       <Dialog open={modalEdicaoAberto} onOpenChange={setModalEdicaoAberto}>
         <DialogContent className="sm:max-w-md w-[95%]">
           <DialogHeader>
-            <DialogTitle>Editar Registo da Caderneta</DialogTitle>
+            <DialogTitle>Editar Conta a Receber</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
               <label className="text-sm font-medium">Nome do Cliente</label>
-              <Input placeholder="Ex: Sr. João da Padaria" value={editCliente} onChange={e => setEditCliente(e.target.value)} />
+              <Input placeholder="Ex: João Silva" value={editCliente} onChange={e => setEditCliente(e.target.value)} />
             </div>
             <div>
               <label className="text-sm font-medium">WhatsApp do Cliente</label>
@@ -340,7 +392,7 @@ export default function Fiados() {
             </div>
             <div>
               <label className="text-sm font-medium">Valor Total (R$)</label>
-              <Input placeholder="Ex: 150.50" type="number" step="0.01" value={editValor} onChange={e => setEditValor(e.target.value)} />
+              <Input placeholder="Ex: 150.50" type="number" min="0.01" step="0.01" value={editValor} onChange={e => setEditValor(e.target.value)} />
             </div>
             <div>
               <label className="text-sm font-medium">Resumo da Compra</label>
@@ -353,8 +405,10 @@ export default function Fiados() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setModalEdicaoAberto(false)} className="w-full sm:w-auto">Cancelar</Button>
-            <Button onClick={handleSalvarEdicao} className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto">Atualizar Registo</Button>
+            <Button variant="outline" onClick={() => setModalEdicaoAberto(false)} className="w-full sm:w-auto" disabled={salvando}>Cancelar</Button>
+            <Button onClick={handleSalvarEdicao} className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto" disabled={salvando}>
+              {salvando ? 'Salvando...' : 'Atualizar Conta'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
