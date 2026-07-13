@@ -6,21 +6,40 @@ import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Building2, Users, Plus, Edit, Trash2, Mail, Shield, Package, ShoppingCart, Crown } from 'lucide-react';
+import { Building2, Users, Plus, Edit, Trash2, Mail, Shield, Package, ShoppingCart, Crown, Lock, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../contexts/auth-context';
 import { toast } from 'sonner';
 import api from '../services/api';
 
-interface Funcionario { id: number; nome: string; email: string; perfil: string; }
+interface Funcionario { id: number; nome: string; email: string; perfil: string; dono?: boolean; }
+
+const CARGO_INFO: Record<string, { label: string; icone: React.ReactElement; badge: string }> = {
+  ADMIN: { label: 'Gerente / Admin', icone: <Shield className="h-4 w-4" />, badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
+  SUPER_ADMIN: { label: 'Gerente / Admin', icone: <Shield className="h-4 w-4" />, badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' },
+  ESTOQUISTA: { label: 'Estoquista', icone: <Package className="h-4 w-4" />, badge: 'bg-orange-500/10 text-orange-700 dark:text-orange-400' },
+  CAIXA: { label: 'Caixa', icone: <ShoppingCart className="h-4 w-4" />, badge: 'bg-green-500/10 text-green-700 dark:text-green-400' },
+};
+
+function infoCargo(perfil: string) {
+  return CARGO_INFO[perfil] ?? { label: perfil, icone: <Users className="h-4 w-4" />, badge: 'bg-muted text-muted-foreground' };
+}
 
 export default function Configuracoes() {
   const { user } = useAuth();
   const [empresaData, setEmpresaData] = useState({ cnpj: '', razaoSocial: '', nomeFantasia: '', email: '', celular: '', endereco: '', cidade: '', estado: '' });
+  const [salvandoEmpresa, setSalvandoEmpresa] = useState(false);
+
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [carregandoEquipe, setCarregandoEquipe] = useState(true);
+  const [acessoEquipeNegado, setAcessoEquipeNegado] = useState(false);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [novoFuncionario, setNovoFuncionario] = useState({ nome: '', email: '', senha: '', perfil: 'CAIXA' });
+  const [salvandoNovo, setSalvandoNovo] = useState(false);
+
   const [dialogEditFuncOpen, setDialogEditFuncOpen] = useState(false);
   const [funcionarioEditando, setFuncionarioEditando] = useState<Funcionario | null>(null);
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
 
   useEffect(() => {
     carregarEmpresa();
@@ -40,6 +59,12 @@ export default function Configuracoes() {
   };
 
   const handleSalvarEmpresa = async () => {
+    if (!empresaData.razaoSocial.trim()) {
+      toast.error('Informe a Razão Social.');
+      return;
+    }
+    if (salvandoEmpresa) return;
+    setSalvandoEmpresa(true);
     try {
       const dados = {
         razaoSocial: empresaData.razaoSocial, nomeFantasia: empresaData.nomeFantasia, emailContato: empresaData.email,
@@ -47,34 +72,72 @@ export default function Configuracoes() {
       };
       await api.put('/empresas/minha-empresa', dados);
       toast.success('Dados da empresa atualizados com sucesso!');
-    } catch (error) { toast.error('Erro ao atualizar empresa.'); }
+    } catch (error) {
+      toast.error('Erro ao atualizar empresa.');
+    } finally {
+      setSalvandoEmpresa(false);
+    }
   };
 
   const carregarEquipe = async () => {
+    setCarregandoEquipe(true);
+    setAcessoEquipeNegado(false);
     try {
       const response = await api.get('/usuarios');
       setFuncionarios(response.data);
     } catch (error: any) {
-      if (error.response && (error.response.status === 400 || error.response.status === 403)) { 
-        console.log("Acesso restrito."); 
+      if (error.response && (error.response.status === 400 || error.response.status === 403)) {
+        setAcessoEquipeNegado(true);
+      } else {
+        toast.error('Erro ao carregar a equipe.');
       }
+    } finally {
+      setCarregandoEquipe(false);
     }
   };
 
+  const validarNovoFuncionario = () => {
+    if (!novoFuncionario.nome.trim()) return toast.error('Informe o nome.'), false;
+    if (!/^\S+@\S+\.\S+$/.test(novoFuncionario.email)) return toast.error('Informe um e-mail válido.'), false;
+    if (novoFuncionario.senha.length < 6) return toast.error('A senha deve ter no mínimo 6 caracteres.'), false;
+    return true;
+  };
+
   const handleAdicionarFuncionario = async () => {
+    if (!validarNovoFuncionario()) return;
+    if (salvandoNovo) return;
+    setSalvandoNovo(true);
     try {
       await api.post('/usuarios', novoFuncionario);
       toast.success('Funcionário adicionado com sucesso!');
       setDialogOpen(false);
-      setNovoFuncionario({ nome: '', email: '', senha: '', perfil: 'CAIXA' }); 
-      carregarEquipe(); 
-    } catch (error: any) { 
-      toast.error(error.response?.data?.message || 'Erro ao adicionar funcionário.'); 
+      setNovoFuncionario({ nome: '', email: '', senha: '', perfil: 'CAIXA' });
+      carregarEquipe();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Erro ao adicionar funcionário.');
+    } finally {
+      setSalvandoNovo(false);
     }
+  };
+
+  const ehMinhaConta = (func: Funcionario) => {
+    if (!user) return false;
+    const userId = typeof user.id === 'string' ? Number(user.id) : user.id;
+    return (userId !== undefined && userId === func.id) || (!!user.email && user.email === func.email);
   };
 
   const handleSalvarEdicaoFuncionario = async () => {
     if (!funcionarioEditando) return;
+    if (!funcionarioEditando.nome.trim() || !/^\S+@\S+\.\S+$/.test(funcionarioEditando.email)) {
+      toast.error('Preencha nome e e-mail válidos.');
+      return;
+    }
+    if (ehMinhaConta(funcionarioEditando) && funcionarioEditando.perfil !== 'ADMIN' && funcionarioEditando.perfil !== 'SUPER_ADMIN') {
+      toast.error('Você não pode rebaixar o próprio cargo — peça a outro administrador para fazer essa alteração.');
+      return;
+    }
+    if (salvandoEdicao) return;
+    setSalvandoEdicao(true);
     try {
       await api.put(`/usuarios/${funcionarioEditando.id}`, {
         nome: funcionarioEditando.nome,
@@ -83,43 +146,45 @@ export default function Configuracoes() {
       });
       toast.success('Perfil atualizado com sucesso!');
       setDialogEditFuncOpen(false);
-      carregarEquipe(); 
-    } catch (error: any) { 
-      toast.error(error.response?.data?.message || 'Erro ao atualizar funcionário.'); 
+      carregarEquipe();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Erro ao atualizar funcionário.');
+    } finally {
+      setSalvandoEdicao(false);
     }
   };
 
-  const handleRemoverFuncionario = async (id: number) => {
-    if (!window.confirm("Tem certeza que deseja apagar este funcionário?")) return;
+  const handleRemoverFuncionario = async (func: Funcionario) => {
+    if (ehMinhaConta(func)) {
+      toast.error('Você não pode excluir a própria conta por aqui. Peça a outro administrador.');
+      return;
+    }
+    if (!window.confirm(`Tem certeza que deseja remover "${func.nome}" da equipe? Essa ação não pode ser desfeita.`)) return;
     try {
-      await api.delete(`/usuarios/${id}`);
+      await api.delete(`/usuarios/${func.id}`);
       toast.success('Funcionário removido com sucesso!');
-      carregarEquipe(); 
-    } catch (error: any) { 
-      toast.error(error.response?.data?.message || 'Erro ao remover funcionário.'); 
+      carregarEquipe();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Erro ao remover funcionário.');
     }
   };
 
-  const formatarCargoVisual = (perfil: string) => {
-    if (perfil === 'ADMIN' || perfil === 'SUPER_ADMIN') return 'Gerente / Admin';
-    if (perfil === 'ESTOQUISTA') return 'Estoquista';
-    if (perfil === 'CAIXA') return 'Caixa';
-    return perfil;
-  };
-
-  const renderIconeCargo = (perfil: string) => {
-    if (perfil === 'ADMIN' || perfil === 'SUPER_ADMIN') return <Shield className="h-4 w-4 text-blue-600" />;
-    if (perfil === 'ESTOQUISTA') return <Package className="h-4 w-4 text-orange-500" />;
-    if (perfil === 'CAIXA') return <ShoppingCart className="h-4 w-4 text-green-500" />;
-    return <Users className="h-4 w-4 text-gray-400" />;
-  };
-
-  // 🚨 A MÁGICA DE LÓGICA AQUI: O funcionário com o menor ID é o Dono da empresa!
-  const donoDaLojaId = funcionarios.length > 0 ? Math.min(...funcionarios.map(f => f.id)) : -1;
+  // O backend agora expõe um campo `dono` de verdade (setado uma única vez no
+  // cadastro da empresa). Usamos ele como fonte da verdade. O cálculo por
+  // menor ID fica só como fallback de segurança, pro caso raro de a tela ser
+  // carregada antes da migração que preenche esse campo pra empresas antigas
+  // ter rodado no banco.
+  const algumMarcadoComoDono = funcionarios.some(f => f.dono === true);
+  const donoDaLojaId = algumMarcadoComoDono
+    ? (funcionarios.find(f => f.dono === true)?.id ?? -1)
+    : (funcionarios.length > 0 ? Math.min(...funcionarios.map(f => f.id)) : -1);
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-3xl font-bold">Configurações e Equipe</h1><p className="text-gray-600">Gerencie os dados da empresa e sua equipe</p></div>
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">Configurações e Equipe</h1>
+        <p className="text-muted-foreground">Gerencie os dados da empresa e sua equipe</p>
+      </div>
 
       <Tabs defaultValue="empresa" className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-md">
@@ -128,28 +193,38 @@ export default function Configuracoes() {
         </TabsList>
 
         <TabsContent value="empresa" className="space-y-4">
-          <Card>
+          <Card className="bg-card border-border">
             <CardHeader><CardTitle>Dados da Empresa</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>CNPJ</Label><Input value={empresaData.cnpj} disabled className="bg-muted text-muted-foreground cursor-not-allowed" /></div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">CNPJ <Lock className="h-3 w-3 text-muted-foreground" /></Label>
+                  <Input value={empresaData.cnpj} disabled className="bg-muted text-muted-foreground cursor-not-allowed" />
+                </div>
                 <div className="space-y-2"><Label>Razão Social</Label><Input value={empresaData.razaoSocial} onChange={e => setEmpresaData({ ...empresaData, razaoSocial: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Nome Fantasia</Label><Input value={empresaData.nomeFantasia} onChange={e => setEmpresaData({ ...empresaData, nomeFantasia: e.target.value })} /></div>
                 <div className="space-y-2"><Label>E-mail</Label><Input type="email" value={empresaData.email} onChange={e => setEmpresaData({ ...empresaData, email: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Celular</Label><Input value={empresaData.celular} onChange={e => setEmpresaData({ ...empresaData, celular: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Endereço</Label><Input value={empresaData.endereco} onChange={e => setEmpresaData({ ...empresaData, endereco: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Cidade</Label><Input value={empresaData.cidade} onChange={e => setEmpresaData({ ...empresaData, cidade: e.target.value })} /></div>
-                <div className="space-y-2"><Label>Estado</Label><Input value={empresaData.estado} onChange={e => setEmpresaData({ ...empresaData, estado: e.target.value })} maxLength={2} /></div>
+                <div className="space-y-2"><Label>Estado</Label><Input value={empresaData.estado} onChange={e => setEmpresaData({ ...empresaData, estado: e.target.value.toUpperCase() })} maxLength={2} /></div>
               </div>
-              <div className="flex justify-end pt-4"><Button onClick={handleSalvarEmpresa}>Salvar Alterações</Button></div>
+              <div className="flex justify-end pt-4">
+                <Button onClick={handleSalvarEmpresa} disabled={salvandoEmpresa}>{salvandoEmpresa ? 'Salvando...' : 'Salvar Alterações'}</Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="equipe" className="space-y-4">
-          <Card>
+          <Card className="bg-card border-border">
             <CardHeader className="flex flex-row items-center justify-between">
-              <div><CardTitle>Gestão de Equipe</CardTitle><p className="text-sm text-gray-600 mt-1">Adicione funcionários e gerencie permissões</p></div>
+              <div>
+                <CardTitle>Gestão de Equipe</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {funcionarios.length > 0 ? `${funcionarios.length} membro(s) · ` : ''}Adicione funcionários e gerencie permissões
+                </p>
+              </div>
               <Button onClick={() => setDialogOpen(true)} className="gap-2"><Plus className="h-4 w-4" /> Novo</Button>
 
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -158,30 +233,42 @@ export default function Configuracoes() {
                   <div className="space-y-4 py-4">
                     <div className="space-y-2"><Label>Nome</Label><Input value={novoFuncionario.nome} onChange={e => setNovoFuncionario({ ...novoFuncionario, nome: e.target.value })} /></div>
                     <div className="space-y-2"><Label>E-mail</Label><Input type="email" value={novoFuncionario.email} onChange={e => setNovoFuncionario({ ...novoFuncionario, email: e.target.value })} /></div>
-                    <div className="space-y-2"><Label>Senha</Label><Input type="password" value={novoFuncionario.senha} onChange={e => setNovoFuncionario({ ...novoFuncionario, senha: e.target.value })} /></div>
+                    <div className="space-y-2">
+                      <Label>Senha</Label>
+                      <Input type="password" value={novoFuncionario.senha} onChange={e => setNovoFuncionario({ ...novoFuncionario, senha: e.target.value })} />
+                      <p className="text-xs text-muted-foreground">Mínimo de 6 caracteres.</p>
+                    </div>
                     <div className="space-y-2">
                       <Label>Função</Label>
-                      <select className="w-full p-2 border rounded-md" value={novoFuncionario.perfil} onChange={e => setNovoFuncionario({ ...novoFuncionario, perfil: e.target.value })}>
+                      <select className="w-full p-2 border border-input rounded-md bg-background text-foreground" value={novoFuncionario.perfil} onChange={e => setNovoFuncionario({ ...novoFuncionario, perfil: e.target.value })}>
                         <option value="CAIXA">Caixa</option>
                         <option value="ESTOQUISTA">Estoquista</option>
                         <option value="ADMIN">Gerente (Admin)</option>
                       </select>
                     </div>
                   </div>
-                  <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button><Button onClick={handleAdicionarFuncionario}>Adicionar</Button></DialogFooter>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={salvandoNovo}>Cancelar</Button>
+                    <Button onClick={handleAdicionarFuncionario} disabled={salvandoNovo}>{salvandoNovo ? 'Adicionando...' : 'Adicionar'}</Button>
+                  </DialogFooter>
                 </DialogContent>
               </Dialog>
 
               <Dialog open={dialogEditFuncOpen} onOpenChange={setDialogEditFuncOpen}>
                 <DialogContent>
-                  <DialogHeader><DialogTitle>Editar Funcionário (RH)</DialogTitle><DialogDescription className="hidden">Janela para editar perfil.</DialogDescription></DialogHeader>
+                  <DialogHeader><DialogTitle>Editar Funcionário</DialogTitle><DialogDescription className="hidden">Janela para editar perfil.</DialogDescription></DialogHeader>
                   {funcionarioEditando && (
                     <div className="space-y-4 py-4">
+                      {ehMinhaConta(funcionarioEditando) && (
+                        <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                          <ShieldAlert className="h-4 w-4 shrink-0" /> Esta é a sua própria conta — você não pode reduzir o próprio cargo.
+                        </div>
+                      )}
                       <div className="space-y-2"><Label>Nome</Label><Input value={funcionarioEditando.nome} onChange={(e) => setFuncionarioEditando({ ...funcionarioEditando, nome: e.target.value })} /></div>
                       <div className="space-y-2"><Label>E-mail</Label><Input type="email" value={funcionarioEditando.email} onChange={(e) => setFuncionarioEditando({ ...funcionarioEditando, email: e.target.value })} /></div>
                       <div className="space-y-2">
                         <Label>Nova Função (Perfil)</Label>
-                        <select className="w-full p-2 border rounded-md" value={funcionarioEditando.perfil} onChange={(e) => setFuncionarioEditando({ ...funcionarioEditando, perfil: e.target.value })}>
+                        <select className="w-full p-2 border border-input rounded-md bg-background text-foreground" value={funcionarioEditando.perfil} onChange={(e) => setFuncionarioEditando({ ...funcionarioEditando, perfil: e.target.value })}>
                           <option value="CAIXA">Caixa</option>
                           <option value="ESTOQUISTA">Estoquista</option>
                           <option value="ADMIN">Gerente (Admin)</option>
@@ -189,51 +276,73 @@ export default function Configuracoes() {
                       </div>
                     </div>
                   )}
-                  <DialogFooter><Button variant="outline" onClick={() => setDialogEditFuncOpen(false)}>Cancelar</Button><Button onClick={handleSalvarEdicaoFuncionario}>Salvar Alterações</Button></DialogFooter>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDialogEditFuncOpen(false)} disabled={salvandoEdicao}>Cancelar</Button>
+                    <Button onClick={handleSalvarEdicaoFuncionario} disabled={salvandoEdicao}>{salvandoEdicao ? 'Salvando...' : 'Salvar Alterações'}</Button>
+                  </DialogFooter>
                 </DialogContent>
               </Dialog>
             </CardHeader>
 
             <CardContent>
-              <Table>
-                <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>E-mail</TableHead><TableHead>Função</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {funcionarios.map(func => (
-                    <TableRow key={func.id}>
-                      <TableCell className="font-medium">{func.nome}</TableCell>
-                      <TableCell><div className="flex items-center gap-2"><Mail className="h-4 w-4 text-gray-400" />{func.email}</div></TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {renderIconeCargo(func.perfil)}
-                          <span className={func.perfil === 'ADMIN' ? 'font-semibold text-blue-700' : 'text-gray-700'}>
-                            {formatarCargoVisual(func.perfil)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        
-                        {/* 🚨 NOVA REGRA APLICADA: Bloqueia APENAS o Dono (donoDaLojaId) */}
-                        {func.id === donoDaLojaId ? (
-                          <div className="flex justify-end pr-4 text-gray-400 cursor-default" title="A conta do Dono é protegida e inalterável">
-                             <Crown className="h-4 w-4 text-amber-500 opacity-80" />
-                             <span className="text-[10px] ml-1 font-bold text-amber-600 uppercase tracking-tighter">Dono</span>
-                          </div>
-                        ) : (
-                          <div className="flex justify-end gap-2">
-                            <Button size="sm" variant="outline" onClick={() => { setFuncionarioEditando(func); setDialogEditFuncOpen(true); }}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => handleRemoverFuncionario(func.id)} className="text-red-600 hover:bg-red-50" title="Demitir / Excluir">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        )}
-
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {carregandoEquipe ? (
+                <div className="text-center py-10 text-muted-foreground">Carregando equipe...</div>
+              ) : acessoEquipeNegado ? (
+                <div className="text-center py-10 text-muted-foreground bg-muted rounded-lg border border-border">
+                  <ShieldAlert className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="font-medium text-foreground">Você não tem permissão para gerenciar a equipe.</p>
+                  <p className="text-sm mt-1">Fale com um administrador da sua empresa se precisar acessar esta área.</p>
+                </div>
+              ) : funcionarios.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">Nenhum funcionário cadastrado ainda.</div>
+              ) : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>E-mail</TableHead><TableHead>Função</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {funcionarios.map(func => {
+                      const cargo = infoCargo(func.perfil);
+                      const souEu = ehMinhaConta(func);
+                      return (
+                        <TableRow key={func.id}>
+                          <TableCell className="font-medium text-foreground">
+                            {func.nome}
+                            {souEu && <span className="ml-2 text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">(você)</span>}
+                          </TableCell>
+                          <TableCell><div className="flex items-center gap-2 text-foreground"><Mail className="h-4 w-4 text-muted-foreground" />{func.email}</div></TableCell>
+                          <TableCell>
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold ${cargo.badge}`}>
+                              {cargo.icone} {cargo.label}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {func.id === donoDaLojaId ? (
+                              <div className="flex justify-end pr-4 text-muted-foreground cursor-default" title="A conta do Dono é protegida e inalterável">
+                                <Crown className="h-4 w-4 text-amber-500 opacity-80" />
+                                <span className="text-[10px] ml-1 font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tighter">Dono</span>
+                              </div>
+                            ) : (
+                              <div className="flex justify-end gap-2">
+                                <Button size="sm" variant="outline" onClick={() => { setFuncionarioEditando(func); setDialogEditFuncOpen(true); }}>
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm" variant="outline"
+                                  onClick={() => handleRemoverFuncionario(func)}
+                                  disabled={souEu}
+                                  className="text-red-600 dark:text-red-400 hover:bg-red-500/10 disabled:opacity-40"
+                                  title={souEu ? 'Você não pode excluir a própria conta' : 'Demitir / Excluir'}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
