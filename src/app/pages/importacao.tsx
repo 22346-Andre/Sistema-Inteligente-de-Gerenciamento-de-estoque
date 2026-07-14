@@ -1,14 +1,109 @@
 import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { Upload, FileText, FileSpreadsheet, FileCode2, CheckCircle2, AlertTriangle, Info, ArrowRight, Trash2 } from 'lucide-react';
+import {
+  Upload,
+  FileText,
+  FileSpreadsheet,
+  FileCode2,
+  CheckCircle2,
+  AlertTriangle,
+  Info,
+  ArrowRight,
+  Trash2,
+  Loader2,
+  PackageCheck,
+  PackagePlus,
+  MessageCircleWarning,
+  XCircle,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
+
+const TAMANHO_MAXIMO_MB = 15;
+const EXTENSOES_ACEITAS = ['.csv', '.xml'];
+
+type StatusResultado = 'sucesso' | 'duplicado' | 'erro';
+
+interface ResultadoImportacao {
+  status: StatusResultado;
+  titulo: string;
+  mensagem: string;
+  arquivo: string;
+}
+
+/**
+ * Extrai uma mensagem legível dos formatos de erro que a API pode devolver:
+ * - string pura (é o que o ImportacaoController retorna hoje: BAD_REQUEST/CONFLICT/
+ *   INTERNAL_SERVER_ERROR com .body(String))
+ * - { erro: string, detalhes?: {...} } (formato do TratadorDeErros global, usado se
+ *   a exceção não for capturada explicitamente no controller)
+ * - fallback para error.message (erro de rede, timeout, CORS, etc.)
+ */
+function extrairMensagemErro(error: any, fallback: string): string {
+  const data = error?.response?.data;
+
+  if (typeof data === 'string' && data.trim()) return data;
+
+  if (data && typeof data === 'object') {
+    if (data.detalhes && typeof data.detalhes === 'object') {
+      const mensagens = Object.values(data.detalhes).filter(Boolean);
+      if (mensagens.length) return mensagens.join(' | ');
+    }
+    if (typeof data.erro === 'string' && data.erro) return data.erro;
+    if (typeof data.message === 'string' && data.message) return data.message;
+  }
+
+  if (error?.message === 'Network Error') {
+    return 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.';
+  }
+
+  return error?.message || fallback;
+}
+
+function arquivoValido(file: File): string | null {
+  const nome = file.name.toLowerCase();
+  const extensaoValida = EXTENSOES_ACEITAS.some((ext) => nome.endsWith(ext));
+  if (!extensaoValida) {
+    return 'Formato inválido! Selecione apenas arquivos .CSV ou .XML';
+  }
+  if (file.size === 0) {
+    return 'O arquivo selecionado está vazio.';
+  }
+  if (file.size > TAMANHO_MAXIMO_MB * 1024 * 1024) {
+    return `O arquivo excede o limite de ${TAMANHO_MAXIMO_MB}MB.`;
+  }
+  return null;
+}
+
+/** Quebra o relatório de texto do backend em linhas para uma exibição mais legível. */
+function RelatorioFormatado({ texto }: { texto: string }) {
+  const linhas = texto.split('\n').filter((l) => l.trim() !== '');
+  return (
+    <div className="space-y-1.5">
+      {linhas.map((linha, i) => {
+        const ehAviso = /^avisos/i.test(linha.trim());
+        const ehItem = linha.trim().startsWith('-');
+        return (
+          <p
+            key={i}
+            className={`text-sm leading-relaxed ${
+              ehAviso ? 'font-bold text-orange-600 mt-3' : ehItem ? 'text-foreground pl-2' : 'font-semibold'
+            }`}
+          >
+            {linha}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function Importacao() {
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
   const [importando, setImportando] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [resultado, setResultado] = useState<ResultadoImportacao | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -20,23 +115,26 @@ export default function Importacao() {
     setDragOver(false);
   };
 
+  const selecionarArquivo = (file: File) => {
+    const erro = arquivoValido(file);
+    if (erro) {
+      toast.error(erro);
+      return;
+    }
+    setResultado(null);
+    setArquivoSelecionado(file);
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    
     const file = e.dataTransfer.files[0];
-    if (file && (file.name.toLowerCase().endsWith('.csv') || file.name.toLowerCase().endsWith('.xml'))) {
-      setArquivoSelecionado(file);
-    } else {
-      toast.error('Formato inválido! Selecione apenas arquivos .CSV ou .XML');
-    }
+    if (file) selecionarArquivo(file);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setArquivoSelecionado(file);
-    }
+    if (file) selecionarArquivo(file);
   };
 
   const handleImportar = async () => {
@@ -46,59 +144,48 @@ export default function Importacao() {
     }
 
     setImportando(true);
+    setResultado(null);
+
+    const nomeArquivo = arquivoSelecionado.name;
+    const nomeArquivoLower = nomeArquivo.toLowerCase();
+    const ehCsv = nomeArquivoLower.endsWith('.csv');
+    const rota = ehCsv ? '/importacao/produtos' : '/importacao/xml-direto';
+    const tituloSucesso = ehCsv ? 'Planilha Importada com Sucesso!' : 'Nota Fiscal Processada e Salva!';
 
     try {
       const formData = new FormData();
       formData.append('ficheiro', arquivoSelecionado);
 
-      const nomeArquivo = arquivoSelecionado.name.toLowerCase();
-      let response;
+      const response = await api.post(rota, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
 
-      // 🟢 SE FOR CSV: Vai para a rota original de Planilhas
-      if (nomeArquivo.endsWith('.csv')) {
-        response = await api.post('/importacao/produtos', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        
-        toast.success('Planilha Importada com Sucesso!', {
-          description: response.data,
-          duration: 8000 
-        });
-
-      // 🟢 SE FOR XML: Usa a rota unificada (Lê e Salva de uma vez)
-      } else if (nomeArquivo.endsWith('.xml')) {
-        response = await api.post('/importacao/xml-direto', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        
-        toast.success('Nota Fiscal Processada e Salva!', {
-          description: response.data,
-          duration: 8000 
-        });
-      } else {
-        throw new Error('Formato de arquivo não suportado pelo sistema.');
-      }
-      
+      setResultado({
+        status: 'sucesso',
+        titulo: tituloSucesso,
+        mensagem: typeof response.data === 'string' ? response.data : 'Importação concluída com sucesso.',
+        arquivo: nomeArquivo,
+      });
+      toast.success(tituloSucesso);
       handleRemoverArquivo();
-      
     } catch (error: any) {
-      console.error('Erro na importação:', error);
-      
-      //  Proteção contra ecrã preto
-      let msgErro = 'Erro desconhecido ao processar o arquivo no servidor.';
-      if (error.response && error.response.data) {
-          if (typeof error.response.data === 'string') {
-              msgErro = error.response.data;
-          } else if (error.response.data.message) {
-              msgErro = error.response.data.message;
-          } else if (error.response.data.error) {
-              msgErro = "Erro " + error.response.status + ": " + error.response.data.error;
-          }
-      } else if (error.message) {
-          msgErro = error.message;
-      }
+      const status = error?.response?.status;
+      const duplicado = status === 409;
+      const mensagem = extrairMensagemErro(
+        error,
+        'Erro desconhecido ao processar o arquivo no servidor.'
+      );
 
-      toast.error('Falha na Importação', { description: msgErro });
+      setResultado({
+        status: duplicado ? 'duplicado' : 'erro',
+        titulo: duplicado ? 'Nota Fiscal já importada' : 'Falha na Importação',
+        mensagem,
+        arquivo: nomeArquivo,
+      });
+
+      toast.error(duplicado ? 'Nota Fiscal já importada' : 'Falha na Importação', {
+        description: mensagem,
+      });
     } finally {
       setImportando(false);
     }
@@ -129,7 +216,7 @@ export default function Importacao() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
+
         <Card className="lg:col-span-5 shadow-lg border-border/50 overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border/50 pb-6">
             <CardTitle className="flex items-center gap-2 text-xl">
@@ -138,28 +225,28 @@ export default function Importacao() {
             <CardDescription>Arraste o seu documento ou selecione manualmente.</CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-6">
-            
+
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               className={`relative group border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 ease-in-out flex flex-col items-center justify-center min-h-[280px]
-                ${dragOver 
-                  ? 'border-primary bg-primary/10 scale-[1.02]' 
+                ${dragOver
+                  ? 'border-primary bg-primary/10 scale-[1.02]'
                   : 'border-muted-foreground/30 hover:border-primary/50 hover:bg-muted/50'
                 }`}
             >
               <div className={`absolute inset-0 rounded-xl bg-gradient-to-b from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`} />
-              
+
               <div className={`p-4 rounded-full bg-background border shadow-sm mb-4 transition-transform duration-300 ${dragOver ? 'scale-110 text-primary' : 'text-muted-foreground group-hover:text-primary'}`}>
                 <Upload className="h-8 w-8" />
               </div>
-              
+
               <h3 className="text-lg font-bold mb-1">Arraste seu arquivo aqui</h3>
               <p className="text-sm text-muted-foreground mb-6 max-w-[250px]">
-                Suporta planilhas padrão (.csv) e espelhos da SEFAZ (.xml)
+                Suporta planilhas padrão (.csv) e espelhos da SEFAZ (.xml) até {TAMANHO_MAXIMO_MB}MB
               </p>
-              
+
               <input ref={inputRef} type="file" accept=".csv,.xml" onChange={handleFileSelect} className="hidden" />
               <Button onClick={() => inputRef.current?.click()} variant="outline" className="relative z-10 rounded-full px-8 hover:bg-primary hover:text-primary-foreground transition-colors">
                 Procurar no Computador
@@ -175,11 +262,11 @@ export default function Importacao() {
                   <div className="truncate">
                     <p className="font-bold text-sm truncate">{arquivoSelecionado.name}</p>
                     <p className="text-xs text-muted-foreground font-medium mt-0.5">
-                      {(arquivoSelecionado.size / 1024).toFixed(2)} KB • {arquivoSelecionado.name.endsWith('.csv') ? 'Planilha Excel/CSV' : 'Nota Fiscal XML'}
+                      {(arquivoSelecionado.size / 1024).toFixed(2)} KB • {arquivoSelecionado.name.toLowerCase().endsWith('.csv') ? 'Planilha Excel/CSV' : 'Nota Fiscal XML'}
                     </p>
                   </div>
                 </div>
-                <Button size="icon" variant="ghost" onClick={handleRemoverArquivo} className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 rounded-full h-8 w-8">
+                <Button size="icon" variant="ghost" onClick={handleRemoverArquivo} disabled={importando} className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 rounded-full h-8 w-8">
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -192,11 +279,48 @@ export default function Importacao() {
               size="lg"
             >
               {importando ? (
-                <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div> Processando no Servidor...</>
+                <><Loader2 className="h-5 w-5 mr-3 animate-spin" /> Processando no Servidor...</>
               ) : (
                 <>Iniciar Importação <ArrowRight className="ml-2 h-5 w-5" /></>
               )}
             </Button>
+
+            {resultado && (
+              <div
+                className={`rounded-xl p-4 border animate-in slide-in-from-bottom-4 ${
+                  resultado.status === 'sucesso'
+                    ? 'bg-green-500/10 border-green-500/20'
+                    : resultado.status === 'duplicado'
+                    ? 'bg-orange-500/10 border-orange-500/20'
+                    : 'bg-destructive/10 border-destructive/20'
+                }`}
+              >
+                <div className="flex gap-3">
+                  {resultado.status === 'sucesso' && <PackageCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />}
+                  {resultado.status === 'duplicado' && <MessageCircleWarning className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />}
+                  {resultado.status === 'erro' && <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />}
+                  <div className="space-y-1 min-w-0">
+                    <p
+                      className={`font-bold text-sm ${
+                        resultado.status === 'sucesso'
+                          ? 'text-green-700 dark:text-green-400'
+                          : resultado.status === 'duplicado'
+                          ? 'text-orange-700 dark:text-orange-400'
+                          : 'text-destructive'
+                      }`}
+                    >
+                      {resultado.titulo}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">{resultado.arquivo}</p>
+                    {resultado.status === 'sucesso' ? (
+                      <RelatorioFormatado texto={resultado.mensagem} />
+                    ) : (
+                      <p className="text-sm leading-relaxed">{resultado.mensagem}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -208,16 +332,16 @@ export default function Importacao() {
             <CardDescription>Como preparar os seus dados para o sistema.</CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-8">
-            
+
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-green-600">
                 <FileSpreadsheet className="h-5 w-5" />
                 <h3 className="font-bold text-lg text-foreground">Importação via Planilha (CSV)</h3>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Ideal para cadastrar ou atualizar múltiplos produtos de uma só vez. O arquivo deve ter os cabeçalhos exatos na primeira linha e estar separado por <strong>ponto e vírgula (;)</strong>.
+                Ideal para cadastrar ou atualizar múltiplos produtos de uma só vez. O sistema aceita separador por <strong>vírgula (,)</strong> ou <strong>ponto e vírgula (;)</strong> — detectado automaticamente pela primeira linha do arquivo.
               </p>
-              
+
               <div className="bg-muted border border-border rounded-xl p-4 overflow-x-auto">
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Exemplo de Estrutura</p>
                 <div className="font-mono text-sm whitespace-nowrap space-y-1">
@@ -227,8 +351,10 @@ export default function Importacao() {
                 </div>
               </div>
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground mt-2">
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500" /> Casas decimais com ponto (Ex: 10.50)</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500" /> Produtos com mesmo nome somam estoque</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Casas decimais com ponto (Ex: 10.50)</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Produto existente (por código de barras ou nome) soma estoque</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Linhas com número de colunas diferente do cabeçalho são ignoradas e reportadas</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> fornecedorId deve existir e pertencer à sua empresa</li>
               </ul>
             </div>
 
@@ -240,20 +366,34 @@ export default function Importacao() {
                 <h3 className="font-bold text-lg text-foreground">Importação de NF-e (XML SEFAZ)</h3>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Faça o upload do espelho XML fornecido pelo seu fornecedor ou baixado do portal da SEFAZ. O sistema irá ler as Tags fiscais automaticamente.
+                Faça o upload do espelho XML fornecido pelo seu fornecedor ou baixado do portal da SEFAZ. O sistema lê a nota inteira e já salva os produtos automaticamente em uma única etapa.
               </p>
-              
+
               <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
                 <div className="flex gap-3">
                   <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
                   <div className="space-y-1 text-sm text-orange-800 dark:text-orange-200">
                     <p className="font-bold">O que o sistema faz com o XML?</p>
                     <ul className="list-disc list-inside space-y-1 opacity-90">
-                      <li>Extrai o Código de Barras (cEAN), Nome e NCM.</li>
+                      <li>Extrai o Código de Barras (cEAN), Nome e NCM de cada item.</li>
+                      <li>Identifica o fornecedor pela tag &lt;emit&gt; e cadastra automaticamente se ainda não existir.</li>
                       <li>Atualiza a quantidade em estoque com base na nota.</li>
                       <li>Atualiza o seu <strong>Preço de Custo</strong> para a precisão exata da compra.</li>
                       <li>Calcula automaticamente um preço de venda sugerido (+50%) para novos produtos.</li>
+                      <li>Registra os impostos (ICMS, IPI, PIS, COFINS) de cada item.</li>
                     </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+                <div className="flex gap-3">
+                  <PackagePlus className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                  <div className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
+                    <p className="font-bold">Proteção contra reimportação</p>
+                    <p className="opacity-90">
+                      Cada NF-e é identificada pela sua chave de acesso. Se a mesma nota for enviada novamente, o sistema bloqueia o processamento para não duplicar o estoque.
+                    </p>
                   </div>
                 </div>
               </div>
