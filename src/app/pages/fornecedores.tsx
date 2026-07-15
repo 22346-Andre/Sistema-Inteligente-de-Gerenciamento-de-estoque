@@ -33,6 +33,7 @@ import {
   Loader2,
   Truck,
   RefreshCcw,
+  AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
@@ -105,6 +106,54 @@ function emailValido(valor: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor);
 }
 
+/** Telefone é opcional, mas se preenchido precisa ter DDD + número (10 ou 11 dígitos). */
+function telefoneValido(valor: string): boolean {
+  if (!valor) return true;
+  const digitos = valor.replace(/\D/g, '');
+  return digitos.length === 10 || digitos.length === 11;
+}
+
+/**
+ * Dado um telefone bruto (possivelmente legado/corrompido, ex.: importado de um XML
+ * sem validação), devolve a versão mascarada e sinaliza se o dado foge do padrão
+ * esperado (nem 10 nem 11 dígitos) para exibirmos um aviso na tela em vez de
+ * simplesmente truncar o valor em silêncio.
+ */
+function analisarTelefoneExibicao(valorBruto: string | null | undefined): { texto: string; suspeito: boolean } {
+  if (!valorBruto) return { texto: '', suspeito: false };
+  const digitos = valorBruto.replace(/\D/g, '');
+  if (digitos.length === 0) return { texto: '', suspeito: false };
+  const suspeito = digitos.length !== 10 && digitos.length !== 11;
+  return { texto: formatarTelefone(digitos), suspeito };
+}
+
+/**
+ * A validação por dígito verificador (cnpjValido) só garante que o número é
+ * matematicamente possível — não que ele existe de verdade. Aqui consultamos a
+ * Receita Federal (via BrasilAPI, pública e sem necessidade de chave) para
+ * confirmar a existência real do CNPJ. Falha de rede/CORS/indisponibilidade NÃO
+ * bloqueia o cadastro — vira apenas um aviso, já que o backend continua sendo a
+ * fonte de verdade da validação estrutural.
+ */
+async function consultarCnpjReceita(cnpjFormatado: string): Promise<{ situacao: 'encontrado'; dados: any } | { situacao: 'nao_encontrado' } | { situacao: 'indisponivel' }> {
+  const digitos = cnpjFormatado.replace(/\D/g, '');
+  try {
+    const resposta = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digitos}`);
+    if (resposta.status === 404) return { situacao: 'nao_encontrado' };
+    if (!resposta.ok) return { situacao: 'indisponivel' };
+    const dados = await resposta.json();
+    return { situacao: 'encontrado', dados };
+  } catch {
+    return { situacao: 'indisponivel' };
+  }
+}
+
+function montarEnderecoReceita(dados: any): string {
+  return [dados.logradouro, dados.numero, dados.bairro, dados.municipio, dados.uf]
+    .filter((parte) => parte && String(parte).trim())
+    .join(', ');
+}
+
 /**
  * Extrai uma mensagem legível dos formatos de erro que a API realmente devolve:
  * - string pura (ex.: rotas de /importacao)
@@ -136,6 +185,7 @@ interface ErrosForm {
   nome?: string;
   cnpj?: string;
   email?: string;
+  telefone?: string;
 }
 
 function validarFormulario(form: FornecedorForm): ErrosForm {
@@ -148,6 +198,9 @@ function validarFormulario(form: FornecedorForm): ErrosForm {
   }
   if (form.email && !emailValido(form.email)) {
     erros.email = 'Informe um e-mail válido.';
+  }
+  if (form.telefone && !telefoneValido(form.telefone)) {
+    erros.telefone = 'Telefone inválido. Informe DDD + número (10 ou 11 dígitos).';
   }
   return erros;
 }
@@ -164,11 +217,15 @@ export default function Fornecedores() {
   const [novoFornecedor, setNovoFornecedor] = useState<FornecedorForm>(FORNECEDOR_VAZIO);
   const [errosNovo, setErrosNovo] = useState<ErrosForm>({});
   const [salvandoNovo, setSalvandoNovo] = useState(false);
+  const [verificandoCnpjNovo, setVerificandoCnpjNovo] = useState(false);
+  const [avisoCnpjNovo, setAvisoCnpjNovo] = useState<{ tipo: 'ok' | 'alerta'; texto: string } | null>(null);
 
   const [dialogEditOpen, setDialogEditOpen] = useState(false);
   const [fornecedorEditando, setFornecedorEditando] = useState<Fornecedor | null>(null);
   const [errosEdicao, setErrosEdicao] = useState<ErrosForm>({});
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  const [verificandoCnpjEdicao, setVerificandoCnpjEdicao] = useState(false);
+  const [avisoCnpjEdicao, setAvisoCnpjEdicao] = useState<{ tipo: 'ok' | 'alerta'; texto: string } | null>(null);
 
   const [excluindoId, setExcluindoId] = useState<number | null>(null);
 
@@ -265,9 +322,68 @@ export default function Fornecedores() {
   };
 
   const abrirEdicao = (fornecedor: Fornecedor) => {
-    setFornecedorEditando({ ...fornecedor, endereco: fornecedor.endereco ?? '' });
+    setFornecedorEditando({
+      ...fornecedor,
+      endereco: fornecedor.endereco ?? '',
+      telefone: analisarTelefoneExibicao(fornecedor.telefone).texto,
+    });
     setErrosEdicao({});
+    setAvisoCnpjEdicao(null);
     setDialogEditOpen(true);
+  };
+
+  const handleVerificarCnpjNovo = async () => {
+    if (!cnpjValido(novoFornecedor.cnpj)) return;
+    setVerificandoCnpjNovo(true);
+    setAvisoCnpjNovo(null);
+    const resultado = await consultarCnpjReceita(novoFornecedor.cnpj);
+    if (resultado.situacao === 'nao_encontrado') {
+      setAvisoCnpjNovo({
+        tipo: 'alerta',
+        texto: 'Não encontramos este CNPJ na Receita Federal. Confira se os números estão corretos antes de salvar.',
+      });
+    } else if (resultado.situacao === 'encontrado') {
+      const dados = resultado.dados;
+      const razaoSocial = dados.razao_social || dados.nome_fantasia;
+      setAvisoCnpjNovo({
+        tipo: 'ok',
+        texto: razaoSocial ? `CNPJ verificado na Receita Federal: ${razaoSocial}.` : 'CNPJ verificado na Receita Federal.',
+      });
+      // Só preenche automaticamente campos que o usuário ainda não digitou.
+      setNovoFornecedor((atual) => ({
+        ...atual,
+        nome: atual.nome.trim() ? atual.nome : razaoSocial || atual.nome,
+        telefone: atual.telefone.trim()
+          ? atual.telefone
+          : dados.ddd_telefone_1
+          ? formatarTelefone(dados.ddd_telefone_1)
+          : atual.telefone,
+        email: atual.email.trim() ? atual.email : dados.email || atual.email,
+        endereco: atual.endereco.trim() ? atual.endereco : montarEnderecoReceita(dados) || atual.endereco,
+      }));
+    }
+    // 'indisponivel' (offline/CORS/instabilidade): não bloqueia nem avisa, falha silenciosa.
+    setVerificandoCnpjNovo(false);
+  };
+
+  const handleVerificarCnpjEdicao = async () => {
+    if (!fornecedorEditando || !cnpjValido(fornecedorEditando.cnpj)) return;
+    setVerificandoCnpjEdicao(true);
+    setAvisoCnpjEdicao(null);
+    const resultado = await consultarCnpjReceita(fornecedorEditando.cnpj);
+    if (resultado.situacao === 'nao_encontrado') {
+      setAvisoCnpjEdicao({
+        tipo: 'alerta',
+        texto: 'Não encontramos este CNPJ na Receita Federal. Confira se os números estão corretos antes de salvar.',
+      });
+    } else if (resultado.situacao === 'encontrado') {
+      const razaoSocial = resultado.dados.razao_social || resultado.dados.nome_fantasia;
+      setAvisoCnpjEdicao({
+        tipo: 'ok',
+        texto: razaoSocial ? `CNPJ verificado na Receita Federal: ${razaoSocial}.` : 'CNPJ verificado na Receita Federal.',
+      });
+    }
+    setVerificandoCnpjEdicao(false);
   };
 
   const fornecedoresFiltrados = useMemo(() => {
@@ -328,14 +444,28 @@ export default function Fornecedores() {
               </div>
               <div className="space-y-2">
                 <Label>CNPJ *</Label>
-                <Input
-                  placeholder="00.000.000/0000-00"
-                  value={novoFornecedor.cnpj}
-                  maxLength={18}
-                  onChange={(e) => setNovoFornecedor({ ...novoFornecedor, cnpj: formatarCNPJ(e.target.value) })}
-                  className={errosNovo.cnpj ? 'border-destructive focus-visible:ring-destructive' : ''}
-                />
+                <div className="relative">
+                  <Input
+                    placeholder="00.000.000/0000-00"
+                    value={novoFornecedor.cnpj}
+                    maxLength={18}
+                    onChange={(e) => {
+                      setNovoFornecedor({ ...novoFornecedor, cnpj: formatarCNPJ(e.target.value) });
+                      setAvisoCnpjNovo(null);
+                    }}
+                    onBlur={handleVerificarCnpjNovo}
+                    className={errosNovo.cnpj ? 'border-destructive focus-visible:ring-destructive pr-9' : 'pr-9'}
+                  />
+                  {verificandoCnpjNovo && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
                 {errosNovo.cnpj && <p className="text-xs text-destructive font-medium">{errosNovo.cnpj}</p>}
+                {!errosNovo.cnpj && avisoCnpjNovo && (
+                  <p className={`text-xs font-medium ${avisoCnpjNovo.tipo === 'ok' ? 'text-green-600' : 'text-orange-600'}`}>
+                    {avisoCnpjNovo.texto}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Telefone</Label>
@@ -344,7 +474,9 @@ export default function Fornecedores() {
                   value={novoFornecedor.telefone}
                   maxLength={15}
                   onChange={(e) => setNovoFornecedor({ ...novoFornecedor, telefone: formatarTelefone(e.target.value) })}
+                  className={errosNovo.telefone ? 'border-destructive focus-visible:ring-destructive' : ''}
                 />
+                {errosNovo.telefone && <p className="text-xs text-destructive font-medium">{errosNovo.telefone}</p>}
               </div>
               <div className="space-y-2">
                 <Label>E-mail</Label>
@@ -409,15 +541,27 @@ export default function Fornecedores() {
                 </div>
                 <div className="space-y-2">
                   <Label>CNPJ *</Label>
-                  <Input
-                    value={fornecedorEditando.cnpj}
-                    maxLength={18}
-                    onChange={(e) =>
-                      setFornecedorEditando({ ...fornecedorEditando, cnpj: formatarCNPJ(e.target.value) })
-                    }
-                    className={errosEdicao.cnpj ? 'border-destructive focus-visible:ring-destructive' : ''}
-                  />
+                  <div className="relative">
+                    <Input
+                      value={fornecedorEditando.cnpj}
+                      maxLength={18}
+                      onChange={(e) => {
+                        setFornecedorEditando({ ...fornecedorEditando, cnpj: formatarCNPJ(e.target.value) });
+                        setAvisoCnpjEdicao(null);
+                      }}
+                      onBlur={handleVerificarCnpjEdicao}
+                      className={errosEdicao.cnpj ? 'border-destructive focus-visible:ring-destructive pr-9' : 'pr-9'}
+                    />
+                    {verificandoCnpjEdicao && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
                   {errosEdicao.cnpj && <p className="text-xs text-destructive font-medium">{errosEdicao.cnpj}</p>}
+                  {!errosEdicao.cnpj && avisoCnpjEdicao && (
+                    <p className={`text-xs font-medium ${avisoCnpjEdicao.tipo === 'ok' ? 'text-green-600' : 'text-orange-600'}`}>
+                      {avisoCnpjEdicao.texto}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Telefone</Label>
@@ -427,7 +571,9 @@ export default function Fornecedores() {
                     onChange={(e) =>
                       setFornecedorEditando({ ...fornecedorEditando, telefone: formatarTelefone(e.target.value) })
                     }
+                    className={errosEdicao.telefone ? 'border-destructive focus-visible:ring-destructive' : ''}
                   />
+                  {errosEdicao.telefone && <p className="text-xs text-destructive font-medium">{errosEdicao.telefone}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label>E-mail</Label>
@@ -566,15 +712,22 @@ export default function Fornecedores() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  fornecedoresFiltrados.map((fornecedor) => (
+                  fornecedoresFiltrados.map((fornecedor) => {
+                    const telefoneInfo = analisarTelefoneExibicao(fornecedor.telefone);
+                    return (
                     <TableRow key={fornecedor.id} className="hover:bg-muted/40">
                       <TableCell className="font-bold">{fornecedor.nome}</TableCell>
                       <TableCell className="text-muted-foreground font-mono text-sm">{fornecedor.cnpj}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         <div className="space-y-1">
-                          {fornecedor.telefone && (
-                            <div className="flex items-center gap-1.5">
-                              <Phone className="h-3.5 w-3.5" /> {fornecedor.telefone}
+                          {telefoneInfo.texto && (
+                            <div
+                              className={`flex items-center gap-1.5 ${telefoneInfo.suspeito ? 'text-orange-600 font-medium' : ''}`}
+                              title={telefoneInfo.suspeito ? 'Número fora do padrão (esperado DDD + 8 ou 9 dígitos). Abra a edição para corrigir.' : undefined}
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                              {telefoneInfo.texto}
+                              {telefoneInfo.suspeito && <AlertTriangle className="h-3.5 w-3.5" />}
                             </div>
                           )}
                           {fornecedor.email && (
@@ -582,7 +735,7 @@ export default function Fornecedores() {
                               <Mail className="h-3.5 w-3.5" /> {fornecedor.email}
                             </div>
                           )}
-                          {!fornecedor.telefone && !fornecedor.email && '—'}
+                          {!telefoneInfo.texto && !fornecedor.email && '—'}
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm max-w-[220px]">
@@ -616,7 +769,7 @@ export default function Fornecedores() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
+                  );})
                 )}
               </TableBody>
             </Table>
