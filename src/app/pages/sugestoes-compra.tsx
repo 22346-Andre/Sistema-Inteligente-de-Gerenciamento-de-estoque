@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { ShoppingCart, TrendingUp, AlertCircle, Package, Download, Mail, MessageCircle, Gauge } from 'lucide-react';
+import { ShoppingCart, TrendingUp, AlertCircle, Package, Download, Mail, MessageCircle, Gauge, Info, PackagePlus } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
 import {
@@ -33,7 +33,7 @@ import {
 interface Sugestao {
   produtoId: number;
   urgencia: string; // "URGENTE" ou "ATENCAO" — decisão final do backend (respeita a regra dura de estoque zerado)
-  grauUrgencia: number; // 0 a 100 — saída bruta do motor fuzzy (nivel_estoque + giro_vendas + prazo_entrega)
+  grauUrgencia: number; // 0 a 100 — score de prioridade de compra (nome interno do backend: grau de urgência fuzzy)
   nomeProduto: string;
   nomeFornecedor: string;
   telefoneFornecedor: string;
@@ -47,15 +47,25 @@ interface Sugestao {
 const formatBRL = (valor: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
 
-// Escala de cor contínua para o grau de urgência fuzzy (0 a 100).
-// Não inventa uma nova classificação — é só a representação visual do
-// mesmo número que o motor fuzzy (FuzzyUrgenciaService) já calcula.
-function corGrauUrgencia(grau: number) {
-  if (grau >= 70) return '#dc2626'; // vermelho — crítico
-  if (grau >= 55) return '#f97316'; // laranja — urgente
-  if (grau >= 30) return '#eab308'; // amarelo — atenção
-  if (grau >= 15) return '#3b82f6'; // azul — baixa
+// Escala de cor contínua para o score de prioridade (0 a 100).
+// É só a representação visual do "grauUrgencia" que o backend calcula
+// combinando estoque atual, vendas recentes e prazo do fornecedor — o
+// usuário não precisa saber o nome técnico do motor, só o que o número significa.
+function corPrioridade(score: number) {
+  if (score >= 70) return '#dc2626'; // vermelho — crítico
+  if (score >= 55) return '#f97316'; // laranja — urgente
+  if (score >= 30) return '#eab308'; // amarelo — atenção
+  if (score >= 15) return '#3b82f6'; // azul — baixa
   return '#22c55e'; // verde — estável
+}
+
+// Explica em linguagem simples por que o score pode estar mais baixo do que
+// o esperado quando faltam dados (ex: produto sem fornecedor cadastrado).
+function motivoPossivelSubestimativa(s: Sugestao) {
+  if (!s.nomeFornecedor || s.nomeFornecedor === 'Sem Fornecedor') {
+    return 'Sem fornecedor cadastrado — o prazo de entrega usado no cálculo é uma estimativa padrão, não o prazo real.';
+  }
+  return null;
 }
 
 export default function SugestoesCompra() {
@@ -168,15 +178,21 @@ export default function SugestoesCompra() {
   const urgentes = sugestoes.filter(s => s.urgencia === 'URGENTE').length;
   const atencao = sugestoes.filter(s => s.urgencia === 'ATENCAO').length;
 
-  // Índice médio de urgência calculado pelo motor fuzzy — dá a "temperatura"
-  // geral da reposição de estoque num único número (0 a 100).
+  // Prioridade média de compra — dá a "temperatura" geral da reposição
+  // de estoque num único número (0 a 100), sem expor o nome técnico do cálculo.
   const mediaUrgencia = totalSugestoes > 0
     ? sugestoes.reduce((acc, curr) => acc + curr.grauUrgencia, 0) / totalSugestoes
     : 0;
 
+  // Quantidade média sugerida por produto — ajuda o gestor a ter noção do
+  // tamanho médio de pedido antes de entrar na lista item a item.
+  const quantidadeMediaSugerida = totalSugestoes > 0
+    ? sugestoes.reduce((acc, curr) => acc + curr.quantidadeSugerida, 0) / totalSugestoes
+    : 0;
+
   // --- Dados para o gráfico "gauge" do índice médio de urgência ---
   const gaugeData = useMemo(() => ([
-    { name: 'urgencia', value: mediaUrgencia, fill: corGrauUrgencia(mediaUrgencia) },
+    { name: 'urgencia', value: mediaUrgencia, fill: corPrioridade(mediaUrgencia) },
   ]), [mediaUrgencia]);
 
   // --- Dados para o donut: quanto do investimento é Urgente x Atenção ---
@@ -198,7 +214,7 @@ export default function SugestoesCompra() {
         nome: s.nomeProduto.length > 18 ? s.nomeProduto.slice(0, 16) + '…' : s.nomeProduto,
         nomeCompleto: s.nomeProduto,
         grau: s.grauUrgencia,
-        fill: corGrauUrgencia(s.grauUrgencia),
+        fill: corPrioridade(s.grauUrgencia),
       }))
       .reverse(); // BarChart horizontal desenha de baixo pra cima
   }, [sugestoes]);
@@ -227,10 +243,10 @@ export default function SugestoesCompra() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Sugestões de Compra</h1>
-        <p className="text-gray-600">Sistema inteligente de reposição de estoque · motor de lógica fuzzy</p>
+        <p className="text-gray-600">Sistema inteligente de reposição de estoque</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total de Sugestões</CardTitle>
@@ -277,14 +293,32 @@ export default function SugestoesCompra() {
 
         <Card className="border-slate-200 bg-slate-50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-900">Índice Fuzzy Médio</CardTitle>
+            <div className="flex items-center gap-1">
+              <CardTitle className="text-sm font-medium text-slate-900">Prioridade Média</CardTitle>
+              <span title="Combina o estoque atual, as vendas recentes e o prazo do fornecedor num único número de 0 a 100. Quanto maior, mais urgente é repor.">
+                <Info className="h-3 w-3 text-slate-400 cursor-help" />
+              </span>
+            </div>
             <Gauge className="h-4 w-4 text-slate-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" style={{ color: corGrauUrgencia(mediaUrgencia) }}>
+            <div className="text-2xl font-bold" style={{ color: corPrioridade(mediaUrgencia) }}>
               {mediaUrgencia.toFixed(0)}<span className="text-sm font-medium text-slate-500">/100</span>
             </div>
-            <p className="text-xs text-slate-600">Temperatura geral do estoque</p>
+            <p className="text-xs text-slate-600">Quão urgente é repor, na média</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pedido Médio</CardTitle>
+            <PackagePlus className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {quantidadeMediaSugerida.toFixed(0)}<span className="text-sm font-medium text-gray-500"> un.</span>
+            </div>
+            <p className="text-xs text-gray-600">Quantidade média por produto</p>
           </CardContent>
         </Card>
       </div>
@@ -293,8 +327,8 @@ export default function SugestoesCompra() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Índice de Urgência (IA)</CardTitle>
-              <p className="text-xs text-gray-500">Média fuzzy de todos os produtos críticos</p>
+              <CardTitle className="text-base">Prioridade Geral</CardTitle>
+              <p className="text-xs text-gray-500">Quão urgente é repor o estoque agora, na média</p>
             </CardHeader>
             <CardContent>
               <div className="relative h-[180px] flex items-center justify-center">
@@ -312,7 +346,7 @@ export default function SugestoesCompra() {
                   </RadialBarChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold" style={{ color: corGrauUrgencia(mediaUrgencia) }}>
+                  <span className="text-3xl font-bold" style={{ color: corPrioridade(mediaUrgencia) }}>
                     {mediaUrgencia.toFixed(0)}
                   </span>
                   <span className="text-xs text-gray-500">de 100</span>
@@ -364,8 +398,8 @@ export default function SugestoesCompra() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Top Produtos Mais Urgentes</CardTitle>
-              <p className="text-xs text-gray-500">Maior grau de urgência calculado pelo fuzzy</p>
+              <CardTitle className="text-base">Produtos com Mais Prioridade</CardTitle>
+              <p className="text-xs text-gray-500">Quem deve ser comprado primeiro</p>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={180}>
@@ -380,7 +414,7 @@ export default function SugestoesCompra() {
                     tickLine={false}
                   />
                   <Tooltip
-                    formatter={(value: number) => [`${value.toFixed(0)}/100`, 'Grau de urgência']}
+                    formatter={(value: number) => [`${value.toFixed(0)}/100`, 'Prioridade']}
                     labelFormatter={(_, payload) => payload?.[0]?.payload?.nomeCompleto ?? ''}
                   />
                   <Bar dataKey="grau" radius={[0, 6, 6, 0]}>
@@ -419,7 +453,7 @@ export default function SugestoesCompra() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Lista Inteligente de Compras</CardTitle>
-            <p className="text-sm text-gray-600 mt-1">Sugestões baseadas no estoque mínimo, giro de vendas e prazo de entrega (fuzzy)</p>
+            <p className="text-sm text-gray-600 mt-1">Sugestões baseadas no estoque mínimo, nas vendas recentes e no prazo do fornecedor</p>
           </div>
 
           <div className="flex gap-2">
@@ -444,7 +478,14 @@ export default function SugestoesCompra() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Urgência</TableHead>
-                  <TableHead>Índice Fuzzy</TableHead>
+                  <TableHead>
+                    <span
+                      className="inline-flex items-center gap-1"
+                      title="Combina estoque atual, vendas recentes e prazo do fornecedor. Quanto maior, mais prioridade tem a compra."
+                    >
+                      Prioridade <Info className="h-3 w-3 text-gray-400 cursor-help" />
+                    </span>
+                  </TableHead>
                   <TableHead>Produto</TableHead>
                   <TableHead>Fornecedor</TableHead>
                   <TableHead className="text-right">Atual</TableHead>
@@ -475,7 +516,7 @@ export default function SugestoesCompra() {
                             className="h-full rounded-full transition-all duration-500"
                             style={{
                               width: `${sugestao.grauUrgencia}%`,
-                              backgroundColor: corGrauUrgencia(sugestao.grauUrgencia),
+                              backgroundColor: corPrioridade(sugestao.grauUrgencia),
                             }}
                           />
                         </div>
@@ -488,7 +529,14 @@ export default function SugestoesCompra() {
                     <TableCell className="font-medium">{sugestao.nomeProduto}</TableCell>
 
                     <TableCell className="text-gray-600">
-                      {sugestao.nomeFornecedor}
+                      <div className="flex items-center gap-1">
+                        {sugestao.nomeFornecedor}
+                        {motivoPossivelSubestimativa(sugestao) && (
+                          <span title={motivoPossivelSubestimativa(sugestao) ?? ''}>
+                            <Info className="h-3 w-3 text-amber-500 cursor-help" />
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
 
                     <TableCell className="text-right font-medium text-red-600">{sugestao.quantidadeAtual}</TableCell>
