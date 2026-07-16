@@ -345,17 +345,29 @@ export default function Importacao() {
               <div className="bg-muted border border-border rounded-xl p-4 overflow-x-auto">
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Exemplo de Estrutura</p>
                 <div className="font-mono text-sm whitespace-nowrap space-y-1">
-                  <div className="text-primary font-bold">nome;descricao;codigoBarras;categoria;precoCusto;precoVenda;quantidade;quantidadeMinima;ncm;unidade;fornecedorId</div>
-                  <div className="text-foreground">Arroz 5kg;Saco de arroz;789123;Alimentos;22.50;28.90;50;10;12345;UN;1</div>
-                  <div className="text-foreground">Feijão 1kg;Feijao preto;789124;Alimentos;7.20;9.90;30;5;12346;UN;1</div>
+                  <div className="text-primary font-bold">nome;descricao;codigoBarras;categoria;precoCusto;precoVenda;quantidade;quantidadeMinima;ncm;unidade;fornecedorNome;fornecedorCnpj</div>
+                  <div className="text-foreground">Arroz 5kg;Saco de arroz;789123;Alimentos;22.50;28.90;50;10;12345;UN;Distribuidora Silva;12.345.678/0001-90</div>
+                  <div className="text-foreground">Feijão 1kg;Feijao preto;789124;Alimentos;7.20;9.90;30;5;12346;UN;Distribuidora Silva;</div>
                 </div>
               </div>
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground mt-2">
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Casas decimais com ponto (Ex: 10.50)</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Produto existente (por código de barras ou nome) soma estoque</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Linhas com número de colunas diferente do cabeçalho são ignoradas e reportadas</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> fornecedorId deve existir e pertencer à sua empresa</li>
+                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> fornecedorNome e/ou fornecedorCnpj — ambos opcionais e independentes entre si</li>
               </ul>
+
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+                <div className="flex gap-3">
+                  <PackagePlus className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                  <div className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
+                    <p className="font-bold">Fornecedor novo? O sistema cadastra sozinho</p>
+                    <p className="opacity-90">
+                      Você não precisa mais saber o ID do fornecedor. Informe o <strong>nome</strong>, o <strong>CNPJ</strong>, ou os dois — o sistema procura um fornecedor já cadastrado com esses dados e, se não achar, <strong>cadastra automaticamente</strong>, do mesmo jeito que já faz com produtos novos. O CNPJ é a chave mais confiável (evita cadastrar o mesmo fornecedor duas vezes com nomes escritos diferente); se você só informar o nome, o sistema cria o fornecedor mesmo assim e avisa no relatório que o CNPJ precisa ser completado depois em "Fornecedores".
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="h-px w-full bg-border" />
