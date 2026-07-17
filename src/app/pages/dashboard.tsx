@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { TrendingUp, Package, AlertCircle, DollarSign, Lock, CheckCircle, PieChart, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -16,17 +16,23 @@ interface DashboardStats {
   produtosCriticos: number;
 }
 
+const formatBRL = (valor: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+
+const CORES_ABC: Record<string, string> = { A: '#10b981', B: '#f59e0b', C: '#ef4444' };
+const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     capitalImobilizado: 0, giroEstoque: 0, totalProdutos: 0, produtosCriticos: 0
   });
-  
+
   const [produtosBaixoEstoque, setProdutosBaixoEstoque] = useState<Produto[]>([]);
-  const [todosProdutos, setTodosProdutos] = useState<Produto[]>([]); 
+  const [todosProdutos, setTodosProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
   const [acessoFinanceiroNegado, setAcessoFinanceiroNegado] = useState(false);
-  
-  //Estados para os dados REAIS do gráfico
+
+  // Estados para os dados REAIS do gráfico de perdas
   const [prejuizoTotal, setPrejuizoTotal] = useState(0);
   const [dadosGraficoPerdas, setDadosGraficoPerdas] = useState<{ mes: string; valor: number }[]>([]);
 
@@ -42,7 +48,7 @@ export default function Dashboard() {
       setStats(resumo);
     } catch (error: any) {
       if (error.response && (error.response.status === 400 || error.response.status === 403)) {
-        setAcessoFinanceiroNegado(true); 
+        setAcessoFinanceiroNegado(true);
       } else {
         toast.error('Erro ao carregar estatísticas financeiras.');
       }
@@ -58,73 +64,69 @@ export default function Dashboard() {
       setProdutosBaixoEstoque(produtosCriticos);
     } catch (error) {}
 
-    // 🟢 LÓGICA CORRIGIDA: Ler datas e somar por mês real
+    // Prejuízo por perdas (QUEBRA_PERDA) dos últimos 3 meses.
     try {
-      const resMovs = await api.get('/movimentacoes'); 
+      const resMovs = await api.get('/movimentacoes');
       const perdas = resMovs.data.filter((m: any) => m.tipo === 'QUEBRA_PERDA');
-      
-      let totalAcumulado = 0;
-      
-      const perdasPorMes: { [key: string]: number } = {};
-      const nomesMeses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-      const dataAtual = new Date();
-      for (let i = 2; i >= 0; i--) {
-        const mesIndex = new Date(dataAtual.getFullYear(), dataAtual.getMonth() - i, 1).getMonth();
-        perdasPorMes[nomesMeses[mesIndex]] = 0;
-      }
-
-      perdas.forEach((p: any) => {
-         const custo = p.produto?.precoCusto || 0;
-         const valorPerdido = custo * p.quantidade;
-         totalAcumulado += valorPerdido;
-
-         if (p.dataMovimentacao) {
-             const dataPerda = new Date(p.dataMovimentacao);
-             const nomeDoMes = nomesMeses[dataPerda.getMonth()];
-             
-             if (perdasPorMes[nomeDoMes] !== undefined) {
-                 perdasPorMes[nomeDoMes] += valorPerdido;
-             } else {
-                 perdasPorMes[nomeDoMes] = valorPerdido;
-             }
-         }
+      // Janela identificada por ANO+mês, não só o nome do mês — senão uma perda de
+      // "Janeiro" do ano passado seria somada junto com "Janeiro" deste ano assim
+      // que o dashboard girasse pra um novo ano, inflando o mês errado no gráfico.
+      const hoje = new Date();
+      const janela = Array.from({ length: 3 }, (_, idx) => {
+        const i = 2 - idx;
+        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        return { chave: `${d.getFullYear()}-${d.getMonth()}`, label: NOMES_MESES[d.getMonth()] };
       });
 
-      const chartData = Object.keys(perdasPorMes).map(mesKey => ({
-          mes: mesKey,
-          valor: perdasPorMes[mesKey]
-      }));
+      const perdasPorChave: { [key: string]: number } = {};
+      janela.forEach(({ chave }) => { perdasPorChave[chave] = 0; });
 
-      setPrejuizoTotal(totalAcumulado);
-      setDadosGraficoPerdas(chartData);
+      let totalJanela = 0;
 
-    } catch (error) {
-    }
+      perdas.forEach((p: any) => {
+        if (!p.dataMovimentacao) return;
+        const custo = p.produto?.precoCusto || 0;
+        const valorPerdido = custo * p.quantidade;
+
+        const dataPerda = new Date(p.dataMovimentacao);
+        const chave = `${dataPerda.getFullYear()}-${dataPerda.getMonth()}`;
+
+        if (perdasPorChave[chave] !== undefined) {
+          perdasPorChave[chave] += valorPerdido;
+          totalJanela += valorPerdido;
+        }
+      });
+
+      setPrejuizoTotal(totalJanela);
+      setDadosGraficoPerdas(janela.map(({ chave, label }) => ({ mes: label, valor: perdasPorChave[chave] })));
+    } catch (error) {}
 
     setLoading(false);
   };
 
-  const formatarDadosGraficoABC = () => {
+  // Curva ABC com contagem por classe além do percentual — só o "%" não dizia
+  // quantos produtos existem em cada classe, o que dificultava entender por que
+  // dois produtos pareciam "parecidos" mas caíam em classes diferentes.
+  const dadosGraficoABC = useMemo(() => {
     if (todosProdutos.length === 0) return [];
-    let totalA = 0, totalB = 0, totalC = 0;
+    const contagem: Record<'A' | 'B' | 'C', number> = { A: 0, B: 0, C: 0 };
 
     todosProdutos.forEach((p) => {
-      const letra = p.classificacaoABC || '';
-      if (letra === 'A') totalA++;
-      if (letra === 'B') totalB++;
-      if (letra === 'C') totalC++;
+      const letra = p.classificacaoABC as 'A' | 'B' | 'C' | undefined;
+      if (letra && contagem[letra] !== undefined) contagem[letra]++;
     });
-    
-    const totalGeral = totalA + totalB + totalC;
+
+    const totalGeral = contagem.A + contagem.B + contagem.C;
     if (totalGeral === 0) return [];
 
-    return [
-      { categoria: 'Classe A', porcentagem: Math.round((totalA / totalGeral) * 100), cor: '#10b981' },
-      { categoria: 'Classe B', porcentagem: Math.round((totalB / totalGeral) * 100), cor: '#f59e0b' },
-      { categoria: 'Classe C', porcentagem: Math.round((totalC / totalGeral) * 100), cor: '#ef4444' },
-    ];
-  };
+    return (['A', 'B', 'C'] as const).map((letra) => ({
+      categoria: `Classe ${letra}`,
+      porcentagem: Math.round((contagem[letra] / totalGeral) * 100),
+      produtos: contagem[letra],
+      cor: CORES_ABC[letra],
+    }));
+  }, [todosProdutos]);
 
   if (loading) {
     return (
@@ -145,9 +147,8 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="shadow-sm border-l-4 border-l-green-500 dark:bg-gray-800 dark:border-gray-700">
+        <Card className="shadow-sm border-l-4 border-l-green-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            {/* Alterado para dark:text-white */}
             <CardTitle className="text-sm font-bold text-gray-700 dark:text-white">Capital Imobilizado</CardTitle>
             <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
           </CardHeader>
@@ -155,14 +156,16 @@ export default function Dashboard() {
             {acessoFinanceiroNegado ? (
               <div className="flex items-center text-gray-400 mt-2"><Lock className="h-5 w-5 mr-2" /><span className="text-sm font-medium">Acesso Restrito</span></div>
             ) : (
-              <><div className="text-2xl font-black text-foreground dark:text-white">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.capitalImobilizado)}</div><p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">Valor total em prateleira</p></>
+              <>
+                <div className="text-2xl font-black text-foreground dark:text-white">{formatBRL(stats.capitalImobilizado)}</div>
+                <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">Valor total em prateleira</p>
+              </>
             )}
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-l-4 border-l-blue-500 dark:bg-gray-800 dark:border-gray-700">
+        <Card className="shadow-sm border-l-4 border-l-blue-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            {/* Alterado para dark:text-white */}
             <CardTitle className="text-sm font-bold text-gray-700 dark:text-white">Giro de Estoque</CardTitle>
             <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           </CardHeader>
@@ -170,14 +173,16 @@ export default function Dashboard() {
             {acessoFinanceiroNegado ? (
               <div className="flex items-center text-gray-400 mt-2"><Lock className="h-5 w-5 mr-2" /><span className="text-sm font-medium">Acesso Restrito</span></div>
             ) : (
-              <><div className="text-2xl font-black text-foreground dark:text-white">{stats.giroEstoque}x</div><p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">Giro nos últimos 30 dias</p></>
+              <>
+                <div className="text-2xl font-black text-foreground dark:text-white">{stats.giroEstoque}x</div>
+                <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">Giro nos últimos 30 dias</p>
+              </>
             )}
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-l-4 border-l-purple-500 dark:bg-gray-800 dark:border-gray-700">
+        <Card className="shadow-sm border-l-4 border-l-purple-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            {/* Alterado para dark:text-white */}
             <CardTitle className="text-sm font-bold text-gray-700 dark:text-white">Total de Produtos</CardTitle>
             <Package className="h-4 w-4 text-purple-600 dark:text-purple-400" />
           </CardHeader>
@@ -187,9 +192,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-l-4 border-l-red-500 dark:bg-gray-800 dark:border-gray-700">
+        <Card className="shadow-sm border-l-4 border-l-red-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            {/* Alterado para dark:text-white */}
             <CardTitle className="text-sm font-bold text-gray-700 dark:text-white">Atenção Necessária</CardTitle>
             <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
           </CardHeader>
@@ -201,31 +205,45 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         <Card className="shadow-md border-t-4 border-t-indigo-500 lg:col-span-1 dark:bg-gray-800 dark:border-gray-700">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 text-lg">
               <PieChart className="h-5 w-5" /> Curva ABC
             </CardTitle>
+            <p className="text-xs text-muted-foreground dark:text-gray-400">Produtos agrupados por valor parado em estoque</p>
           </CardHeader>
           <CardContent>
-            {formatarDadosGraficoABC().length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={formatarDadosGraficoABC()}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="categoria" fontSize={12} stroke="#9ca3af" />
-                  <YAxis fontSize={12} stroke="#9ca3af" />
-                  <Tooltip 
-                    formatter={(value) => `${value}%`} 
-                    contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f3f4f6' }} 
-                  />
-                  <Bar dataKey="porcentagem" radius={[4, 4, 0, 0]}>
-                    {formatarDadosGraficoABC().map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.cor} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            {dadosGraficoABC.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={dadosGraficoABC}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="categoria" fontSize={12} stroke="#9ca3af" />
+                    <YAxis fontSize={12} stroke="#9ca3af" />
+                    <Tooltip
+                      formatter={(value: number, _name, item: any) => [
+                        `${value}% do valor · ${item?.payload?.produtos ?? 0} produto(s)`,
+                        'Participação',
+                      ]}
+                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f3f4f6' }}
+                    />
+                    <Bar dataKey="porcentagem" radius={[4, 4, 0, 0]}>
+                      {dadosGraficoABC.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.cor} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="flex items-center justify-center gap-4 mt-2">
+                  {dadosGraficoABC.map((item) => (
+                    <span key={item.categoria} className="flex items-center gap-1 text-xs text-muted-foreground dark:text-gray-400">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.cor }} />
+                      {item.categoria}: {item.produtos}
+                    </span>
+                  ))}
+                </div>
+              </>
             ) : (
               <div className="flex items-center justify-center h-[220px] text-gray-400 bg-muted dark:bg-gray-900 rounded">Sem dados</div>
             )}
@@ -237,6 +255,7 @@ export default function Dashboard() {
             <CardTitle className="flex items-center gap-2 text-red-900 dark:text-red-200 text-lg">
               <AlertTriangle className="h-5 w-5" /> Prejuízo por Perdas
             </CardTitle>
+            <p className="text-xs text-muted-foreground dark:text-gray-400">Últimos 3 meses</p>
           </CardHeader>
           <CardContent>
             {acessoFinanceiroNegado ? (
@@ -247,17 +266,17 @@ export default function Dashboard() {
                   <BarChart data={dadosGraficoPerdas}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis dataKey="mes" fontSize={12} stroke="#9ca3af" />
-                    <Tooltip 
-                      formatter={(value: number) => `R$ ${value.toFixed(2)}`} 
-                      cursor={{fill: 'rgba(255, 255, 255, 0.1)'}} 
-                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f3f4f6' }} 
+                    <Tooltip
+                      formatter={(value: number) => formatBRL(value)}
+                      cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }}
+                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f3f4f6' }}
                     />
                     <Bar dataKey="valor" fill="#ef4444" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
                 <div className="mt-2 text-center">
-                  <span className="text-xs text-muted-foreground dark:text-gray-400 uppercase tracking-widest font-bold">Total Acumulado</span>
-                  <p className="text-xl font-black text-red-600 dark:text-red-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prejuizoTotal)}</p>
+                  <span className="text-xs text-muted-foreground dark:text-gray-400 uppercase tracking-widest font-bold">Total nos Últimos 3 Meses</span>
+                  <p className="text-xl font-black text-red-600 dark:text-red-400">{formatBRL(prejuizoTotal)}</p>
                 </div>
               </>
             )}
