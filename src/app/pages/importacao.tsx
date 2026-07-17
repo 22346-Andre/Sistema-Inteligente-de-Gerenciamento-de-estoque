@@ -346,7 +346,7 @@ export default function Importacao() {
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Exemplo de Estrutura</p>
                 <div className="font-mono text-sm whitespace-nowrap space-y-1">
                   <div className="text-primary font-bold">nome;descricao;codigoBarras;categoria;precoCusto;precoVenda;quantidade;quantidadeMinima;ncm;unidade;fornecedorNome;fornecedorCnpj</div>
-                  <div className="text-foreground">Arroz 5kg;Saco de arroz;789123;Alimentos;22.50;28.90;50;10;12345;UN;Distribuidora Silva;12.345.678/0001-90</div>
+                  <div className="text-foreground">Arroz 5kg;Saco de arroz;789123;Alimentos;22.50;28.90;50;10;12345;UN;Distribuidora Silva;11.222.333/0001-81</div>
                   <div className="text-foreground">Feijão 1kg;Feijao preto;789124;Alimentos;7.20;9.90;30;5;12346;UN;Distribuidora Silva;</div>
                 </div>
               </div>
@@ -364,6 +364,9 @@ export default function Importacao() {
                     <p className="font-bold">Fornecedor novo? O sistema cadastra sozinho</p>
                     <p className="opacity-90">
                       Você não precisa mais saber o ID do fornecedor. Informe o <strong>nome</strong>, o <strong>CNPJ</strong>, ou os dois — o sistema procura um fornecedor já cadastrado com esses dados e, se não achar, <strong>cadastra automaticamente</strong>, do mesmo jeito que já faz com produtos novos. O CNPJ é a chave mais confiável (evita cadastrar o mesmo fornecedor duas vezes com nomes escritos diferente); se você só informar o nome, o sistema cria o fornecedor mesmo assim e avisa no relatório que o CNPJ precisa ser completado depois em "Fornecedores".
+                    </p>
+                    <p className="opacity-90">
+                      O CNPJ informado é conferido pelo dígito verificador (não só a quantidade de números). Se vier errado ou inventado, a linha não é rejeitada — o produto é importado do mesmo jeito, só que o fornecedor é resolvido pelo nome, e o relatório final avisa qual CNPJ foi ignorado.
                     </p>
                   </div>
                 </div>
