@@ -27,6 +27,7 @@ interface ItemEstoqueMorto {
   dataUltimaVendaLabel: string;
   precoVendaAtual: number;
   precoVendaQueima: number;
+  margemAjustada: boolean;
 }
 
 const formatBRL = (valor: number) =>
@@ -498,7 +499,14 @@ export default function Dashboard() {
                       className="flex items-center justify-between text-sm bg-white/70 dark:bg-gray-700/50 border border-cyan-100 dark:border-gray-600 rounded-lg px-3 py-2"
                     >
                       <div className="truncate pr-2">
-                        <p className="font-semibold text-cyan-950 dark:text-cyan-100 truncate">{item.nomeProduto}</p>
+                        <p className="font-semibold text-cyan-950 dark:text-cyan-100 truncate flex items-center gap-1">
+                          {item.nomeProduto}
+                          {item.margemAjustada && (
+                            <span title="Margem original menor que 30% — o preço de queima foi travado no custo (lucro zero) pra não vender no prejuízo">
+                              <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+                            </span>
+                          )}
+                        </p>
                         <p className="text-xs text-cyan-700/70 dark:text-gray-400">{item.dataUltimaVendaLabel} · {item.quantidadeParada} un.</p>
                       </div>
                       <span className="font-bold text-cyan-800 dark:text-cyan-300 shrink-0">{formatBRL(item.valorParado)}</span>
@@ -508,6 +516,12 @@ export default function Dashboard() {
                 {estoqueMorto.length > 6 && (
                   <p className="text-xs text-muted-foreground dark:text-gray-400 text-center mt-2">
                     + {estoqueMorto.length - 6} outro{estoqueMorto.length - 6 !== 1 ? 's' : ''} produto{estoqueMorto.length - 6 !== 1 ? 's' : ''} na planilha completa
+                  </p>
+                )}
+                {estoqueMorto.some((i) => i.margemAjustada) && (
+                  <p className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1 mt-3">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    {estoqueMorto.filter((i) => i.margemAjustada).length} produto{estoqueMorto.filter((i) => i.margemAjustada).length !== 1 ? 's têm' : ' tem'} margem menor que 30% — o preço de queima desses foi travado no custo (lucro zero) pra não vender no prejuízo.
                   </p>
                 )}
               </>
