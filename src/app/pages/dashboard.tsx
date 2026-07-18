@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { TrendingUp, Package, AlertCircle, DollarSign, Lock, CheckCircle, PieChart, AlertTriangle } from 'lucide-react';
+import { TrendingUp, Package, AlertCircle, DollarSign, Lock, CheckCircle, PieChart, AlertTriangle, Snowflake, Flame, Loader2, Settings2, Check, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Link } from 'react-router';
 import { Button } from '../components/ui/button';
@@ -14,6 +14,19 @@ interface DashboardStats {
   giroEstoque: number;
   totalProdutos: number;
   produtosCriticos: number;
+}
+
+interface ItemEstoqueMorto {
+  produtoId: number;
+  nomeProduto: string;
+  nomeFornecedor: string;
+  quantidadeParada: number;
+  valorUnitarioCusto: number;
+  valorParado: number;
+  diasSemVenda: number | null;
+  dataUltimaVendaLabel: string;
+  precoVendaAtual: number;
+  precoVendaQueima: number;
 }
 
 const formatBRL = (valor: number) =>
@@ -35,6 +48,16 @@ export default function Dashboard() {
   // Estados para os dados REAIS do gráfico de perdas
   const [prejuizoTotal, setPrejuizoTotal] = useState(0);
   const [dadosGraficoPerdas, setDadosGraficoPerdas] = useState<{ mes: string; valor: number }[]>([]);
+
+  // Estados do painel "Dinheiro Congelado" (estoque morto)
+  const [estoqueMorto, setEstoqueMorto] = useState<ItemEstoqueMorto[]>([]);
+  const [totalCongelado, setTotalCongelado] = useState(0);
+  const [acessoEstoqueMortoNegado, setAcessoEstoqueMortoNegado] = useState(false);
+  const [gerandoPlanilhaQueima, setGerandoPlanilhaQueima] = useState(false);
+  const [diasConsiderados, setDiasConsiderados] = useState(90);
+  const [editandoDias, setEditandoDias] = useState(false);
+  const [valorEditandoDias, setValorEditandoDias] = useState('90');
+  const [salvandoDias, setSalvandoDias] = useState(false);
 
   useEffect(() => {
     carregarDados();
@@ -102,8 +125,78 @@ export default function Dashboard() {
       setDadosGraficoPerdas(janela.map(({ chave, label }) => ({ mes: label, valor: perdasPorChave[chave] })));
     } catch (error) {}
 
+    // Dinheiro Congelado: produtos parados há mais de 90 dias sem venda
+    try {
+      const resEstoqueMorto = await api.get('/estoque-morto');
+      setEstoqueMorto(resEstoqueMorto.data.itens ?? []);
+      setTotalCongelado(resEstoqueMorto.data.totalCongelado ?? 0);
+      const dias = resEstoqueMorto.data.diasConsiderados ?? 90;
+      setDiasConsiderados(dias);
+      setValorEditandoDias(String(dias));
+    } catch (error: any) {
+      if (error.response && (error.response.status === 400 || error.response.status === 403)) {
+        setAcessoEstoqueMortoNegado(true);
+      }
+    }
+
     setLoading(false);
   };
+
+  const handleSalvarDiasConsiderados = async () => {
+    const novoValor = parseInt(valorEditandoDias, 10);
+    if (isNaN(novoValor) || novoValor <= 0) {
+      toast.error('Informe um número de dias maior que zero.');
+      return;
+    }
+
+    try {
+      setSalvandoDias(true);
+      await api.put('/estoque-morto/configuracao', { dias: novoValor });
+      setDiasConsiderados(novoValor);
+      setEditandoDias(false);
+      toast.success(`A partir de agora, produtos parados há +${novoValor} dias entram no painel.`);
+      // Recarrega a lista com o novo critério
+      const resEstoqueMorto = await api.get('/estoque-morto');
+      setEstoqueMorto(resEstoqueMorto.data.itens ?? []);
+      setTotalCongelado(resEstoqueMorto.data.totalCongelado ?? 0);
+    } catch (error) {
+      toast.error('Erro ao salvar a configuração.');
+    } finally {
+      setSalvandoDias(false);
+    }
+  };
+
+  const handleGerarPlanilhaQueima = async () => {
+    try {
+      setGerandoPlanilhaQueima(true);
+      toast.info('Gerando lista de queima de estoque...');
+      const response = await api.get('/estoque-morto/planilha', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'Queima_Estoque_SmartStock.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      toast.success('Lista de queima de estoque baixada! Já vem com o preço sugerido de -30%.');
+    } catch (error) {
+      toast.error('Erro ao gerar a lista de queima de estoque.');
+    } finally {
+      setGerandoPlanilhaQueima(false);
+    }
+  };
+
+  // Item mais "parado" da lista — usado só pra dar contexto na frase de
+  // destaque ("...sem saída desde X"); a lista completa já vem ordenada por
+  // valor, então aqui procuramos especificamente o de mais dias sem vender.
+  const itemMaisAntigo = useMemo(() => {
+    if (estoqueMorto.length === 0) return null;
+    return estoqueMorto.reduce((pior, atual) => {
+      const diasPior = pior.diasSemVenda ?? Infinity;
+      const diasAtual = atual.diasSemVenda ?? Infinity;
+      return diasAtual > diasPior ? atual : pior;
+    });
+  }, [estoqueMorto]);
 
   // Curva ABC com contagem por classe além do percentual — só o "%" não dizia
   // quantos produtos existem em cada classe, o que dificultava entender por que
@@ -315,6 +408,113 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {!acessoEstoqueMortoNegado && (
+        <Card className="shadow-md border-t-4 border-t-cyan-600 bg-gradient-to-br from-cyan-50 to-white dark:from-gray-800 dark:to-gray-800 dark:border-gray-700">
+          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-cyan-900 dark:text-cyan-200 text-lg">
+                <Snowflake className="h-5 w-5" /> Dinheiro Congelado
+              </CardTitle>
+
+              {!editandoDias ? (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <p className="text-xs text-muted-foreground dark:text-gray-400">
+                    Produtos parados há mais de {diasConsiderados} dias sem venda
+                  </p>
+                  <button
+                    onClick={() => { setValorEditandoDias(String(diasConsiderados)); setEditandoDias(true); }}
+                    title="Ajustar esse critério pro ritmo do seu negócio"
+                    className="text-cyan-700/60 hover:text-cyan-800 dark:text-cyan-400/60 dark:hover:text-cyan-300 transition-colors"
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-xs text-muted-foreground dark:text-gray-400">Considerar parado após</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={valorEditandoDias}
+                    onChange={(e) => setValorEditandoDias(e.target.value)}
+                    className="w-16 h-7 text-xs text-center rounded-md border border-cyan-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-1"
+                    autoFocus
+                  />
+                  <span className="text-xs text-muted-foreground dark:text-gray-400">dias</span>
+                  <button
+                    onClick={handleSalvarDiasConsiderados}
+                    disabled={salvandoDias}
+                    title="Salvar"
+                    className="text-green-600 hover:text-green-700 disabled:opacity-50"
+                  >
+                    {salvandoDias ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  </button>
+                  <button
+                    onClick={() => setEditandoDias(false)}
+                    disabled={salvandoDias}
+                    title="Cancelar"
+                    className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+            {estoqueMorto.length > 0 && (
+              <Button
+                onClick={handleGerarPlanilhaQueima}
+                disabled={gerandoPlanilhaQueima}
+                className="bg-cyan-700 hover:bg-cyan-800 text-white shrink-0"
+              >
+                {gerandoPlanilhaQueima ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando...</>
+                ) : (
+                  <><Flame className="h-4 w-4 mr-2" /> Gerar Lista para Queima de Estoque (-30%)</>
+                )}
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            {estoqueMorto.length === 0 ? (
+              <div className="flex items-center gap-2 text-green-700 dark:text-green-400 py-4">
+                <CheckCircle className="h-5 w-5 shrink-0" />
+                <p className="font-bold">Nenhum produto parado há mais de {diasConsiderados} dias. Estoque saudável!</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-cyan-950 dark:text-cyan-100 leading-relaxed">
+                  Você tem <span className="font-black text-2xl text-cyan-800 dark:text-cyan-300">{formatBRL(totalCongelado)}</span> parados
+                  {' '}em {estoqueMorto.length} produto{estoqueMorto.length !== 1 ? 's' : ''} que não {estoqueMorto.length !== 1 ? 'têm' : 'tem'} saída.
+                  {itemMaisAntigo && (
+                    <> O pior caso é <strong>{itemMaisAntigo.nomeProduto}</strong>, {itemMaisAntigo.dataUltimaVendaLabel === 'Nunca vendeu' ? 'que nunca vendeu desde que foi cadastrado' : `parado ${itemMaisAntigo.dataUltimaVendaLabel}`}.</>
+                  )}
+                </p>
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {estoqueMorto.slice(0, 6).map((item) => (
+                    <div
+                      key={item.produtoId}
+                      className="flex items-center justify-between text-sm bg-white/70 dark:bg-gray-700/50 border border-cyan-100 dark:border-gray-600 rounded-lg px-3 py-2"
+                    >
+                      <div className="truncate pr-2">
+                        <p className="font-semibold text-cyan-950 dark:text-cyan-100 truncate">{item.nomeProduto}</p>
+                        <p className="text-xs text-cyan-700/70 dark:text-gray-400">{item.dataUltimaVendaLabel} · {item.quantidadeParada} un.</p>
+                      </div>
+                      <span className="font-bold text-cyan-800 dark:text-cyan-300 shrink-0">{formatBRL(item.valorParado)}</span>
+                    </div>
+                  ))}
+                </div>
+                {estoqueMorto.length > 6 && (
+                  <p className="text-xs text-muted-foreground dark:text-gray-400 text-center mt-2">
+                    + {estoqueMorto.length - 6} outro{estoqueMorto.length - 6 !== 1 ? 's' : ''} produto{estoqueMorto.length - 6 !== 1 ? 's' : ''} na planilha completa
+                  </p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
