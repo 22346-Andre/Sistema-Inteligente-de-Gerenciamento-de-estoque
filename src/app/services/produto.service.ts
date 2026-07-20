@@ -6,6 +6,8 @@ export interface Imposto {
   aliquota: number;
 }
 
+// Isso é o que a API DEVOLVE (GET /produtos, GET /produtos/:id) — reflete a
+// entidade Produto do backend, cujo campo se chama "estoqueMinimo".
 export interface Produto {
   id: number;
   nome: string;
@@ -14,17 +16,21 @@ export interface Produto {
   precoCusto: number;
   precoVenda: number;
   quantidade: number;
-  quantidadeMinima: number;
+  estoqueMinimo: number;
   fornecedorId: number;
   fornecedorNome?: string;
   classificacaoABC?: string;
-  
+
   ncm?: string;
   cfop?: string;
   finalidadeEstoque?: string;
   impostos?: Imposto[];
 }
 
+// Isso é o que você ENVIA pra criar/editar (POST/PUT /produtos) — o
+// ProdutoDTO do backend espera "quantidadeMinima" nesse payload (nomes
+// diferentes de propósito: um é a entidade salva, o outro é o formulário de
+// entrada). Ver ProdutoService.salvar()/atualizar() no backend.
 export interface ProdutoDTO {
   nome: string;
   codigoBarras: string;
@@ -33,7 +39,7 @@ export interface ProdutoDTO {
   precoVenda: number;
   quantidadeMinima: number;
   fornecedorId: number;
-  
+
   ncm?: string;
   cfop?: string;
   finalidadeEstoque?: string;
@@ -41,11 +47,10 @@ export interface ProdutoDTO {
 }
 
 export interface LoteDTO {
-  numeroLote?: string; 
+  numeroLote?: string;
   quantidade: number;
   dataValidade?: string;
-  novoPrecoCompra?: number; 
-  // 🟢 Adicionado para aceitar chave no lote/entrada
+  novoPrecoCompra?: number;
   chaveNotaFiscal?: string;
 }
 
@@ -53,8 +58,7 @@ export interface SaidaDTO {
   quantidadeDesejada: number;
   tipo?: string;
   motivo?: string;
-  // 🟢 Adicionado para enviar a chave de lote gerada no Frontend
-  chaveNotaFiscal?: string; 
+  chaveNotaFiscal?: string;
 }
 
 export const produtoService = {

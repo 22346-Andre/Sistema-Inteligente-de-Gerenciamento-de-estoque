@@ -1,5 +1,6 @@
 import api from './api';
 
+
 export interface Fornecedor {
   id: number;
   nome: string;
@@ -7,6 +8,7 @@ export interface Fornecedor {
   telefone: string;
   email: string;
   endereco: string;
+  prazoEntregaDias?: number;
 }
 
 export interface FornecedorDTO {
@@ -15,6 +17,7 @@ export interface FornecedorDTO {
   telefone: string;
   email: string;
   endereco: string;
+  prazoEntregaDias?: number;
 }
 
 export const fornecedorService = {

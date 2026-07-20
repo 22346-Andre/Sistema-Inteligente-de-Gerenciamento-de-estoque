@@ -1,18 +1,21 @@
 import api from './api';
 
+
 export interface Usuario {
   id: number;
   nome: string;
   email: string;
-  role: string;
-  ativo: boolean;
+  perfil: string;
+  telefone?: string;
+  dono: boolean;
 }
 
 export interface UsuarioDTO {
   nome: string;
   email: string;
-  senha?: string; // 🚨 Opcional (com o '?') para não dar erro ao atualizar sem mexer na senha
-  role: string;
+  senha?: string; // opcional pra não obrigar reenvio de senha ao atualizar
+  perfil: string;
+  telefone?: string;
 }
 
 export const usuarioService = {
@@ -40,10 +43,6 @@ export const usuarioService = {
     await api.delete(`/usuarios/${id}`);
   },
 
-  // ==========================================
-  // 🚨 NOVOS MÉTODOS: CONFIGURAÇÕES DE PERFIL
-  // ==========================================
-  
   async atualizarPerfil(dados: { nome: string }): Promise<string> {
     const response = await api.put('/usuarios/perfil/dados', dados);
     return response.data;

@@ -345,9 +345,9 @@ export default function Importacao() {
               <div className="bg-muted border border-border rounded-xl p-4 overflow-x-auto">
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Exemplo de Estrutura</p>
                 <div className="font-mono text-sm whitespace-nowrap space-y-1">
-                  <div className="text-primary font-bold">nome;descricao;codigoBarras;categoria;precoCusto;precoVenda;quantidade;quantidadeMinima;ncm;unidade;fornecedorNome;fornecedorCnpj</div>
-                  <div className="text-foreground">Arroz 5kg;Saco de arroz;789123;Alimentos;22.50;28.90;50;10;12345;UN;Distribuidora Silva;11.222.333/0001-81</div>
-                  <div className="text-foreground">Feijão 1kg;Feijao preto;789124;Alimentos;7.20;9.90;30;5;12346;UN;Distribuidora Silva;</div>
+                  <div className="text-primary font-bold">nome;descricao;codigoBarras;categoria;precoCusto;precoVenda;quantidade;quantidadeMinima;ncm;unidade;fornecedorNome;fornecedorCnpj;icms;ipi;pis;cofins</div>
+                  <div className="text-foreground">Arroz 5kg;Saco de arroz;789123;Alimentos;22.50;28.90;50;10;12345;UN;Distribuidora Silva;11.222.333/0001-81;18;0;1.65;7.6</div>
+                  <div className="text-foreground">Feijão 1kg;Feijao preto;789124;Alimentos;7.20;9.90;30;5;12346;UN;Distribuidora Silva;;;;;</div>
                 </div>
               </div>
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground mt-2">
@@ -355,6 +355,7 @@ export default function Importacao() {
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Produto existente (por código de barras ou nome) soma estoque</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Linhas com número de colunas diferente do cabeçalho são ignoradas e reportadas</li>
                 <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> fornecedorNome e/ou fornecedorCnpj — ambos opcionais e independentes entre si</li>
+                <li className="flex items-center gap-2 md:col-span-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> icms, ipi, pis, cofins — opcionais, em % (Ex: 18 = 18%). Se a linha não trouxer nenhum, o produto fica sem imposto cadastrado (você pode adicionar depois pela tela de Produtos)</li>
               </ul>
 
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
