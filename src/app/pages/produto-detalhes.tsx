@@ -6,13 +6,16 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'; 
-import { ArrowLeft, Package, ShoppingCart, Edit, FileText, AlertTriangle, ArrowRightLeft, Scale, Clock, Plus, Trash2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { ArrowLeft, Package, ShoppingCart, Edit, FileText, AlertTriangle, ArrowRightLeft, Scale, Clock, Plus, Trash2, TrendingDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import api from '../services/api';
 import { toast } from 'sonner';
 import { produtoService } from '../services/produto.service';
+
+const formatBRL = (valor: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
 
 export default function ProdutoDetalhes() {
   const { id } = useParams();
@@ -49,7 +52,6 @@ export default function ProdutoDetalhes() {
     }
   };
 
-  // 🟢 FUNÇÕES PARA EDITAR OS IMPOSTOS (ADICIONADO)
   const adicionarLinhaImpostoEdit = () => {
     if (!produtoEditando) return;
     setProdutoEditando({
@@ -79,12 +81,11 @@ export default function ProdutoDetalhes() {
         precoVenda: Number(produtoEditando.precoVenda) || 0,
         quantidadeMinima: Number(produtoEditando.estoqueMinimo || produtoEditando.quantidadeMinima) || 0,
         estoqueMinimo: Number(produtoEditando.estoqueMinimo || produtoEditando.quantidadeMinima) || 0,
-        // 🟢 GARANTE O ENVIO DOS IMPOSTOS NO SALVAMENTO (ADICIONADO)
         impostos: (produtoEditando.impostos || []).map((imp: any) => ({
             ...imp, aliquota: Number(imp.aliquota) || 0
         }))
       };
-      
+
       const response = await api.put(`/produtos/${id}`, dadosParaEnviar);
       setProduto(response.data);
       setDialogEditOpen(false);
@@ -120,7 +121,7 @@ export default function ProdutoDetalhes() {
       setDialogPerdaOpen(false);
       setPerdaQuantidade('');
       setPerdaMotivo('');
-      
+
       carregarDados();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Erro ao registar perda.');
@@ -131,14 +132,14 @@ export default function ProdutoDetalhes() {
     try {
       toast.loading("A gerar Documento Fiscal...", { id: 'nf' });
       const response = await api.get(`/relatorios/danfe/${movId}/pdf`, { responseType: 'blob' });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `NF_Operacao_${movId}.pdf`);
       document.body.appendChild(link);
       link.click();
-      
+
       toast.success("Documento baixado com sucesso!", { id: 'nf' });
     } catch (error) {
       toast.error("Erro ao gerar a Nota Fiscal.", { id: 'nf' });
@@ -156,7 +157,7 @@ export default function ProdutoDetalhes() {
 
     const num = Number(val);
     if (!isNaN(num) && num >= 0) {
-        setProdutoEditando({ ...produtoEditando, [field]: val.replace(/^0+(?=\d)/, '') }); 
+        setProdutoEditando({ ...produtoEditando, [field]: val.replace(/^0+(?=\d)/, '') });
     }
   };
 
@@ -176,8 +177,18 @@ export default function ProdutoDetalhes() {
   const precoCusto = produto.precoCusto || 0;
   const precoVenda = produto.precoVenda || 0;
   const quantidade = produto.quantidade || 0;
+  const estoqueMinimo = produto.estoqueMinimo ?? produto.quantidadeMinima ?? 0;
+  const estoqueBaixo = quantidade < estoqueMinimo;
   const valorTotalEstoque = quantidade * precoCusto;
-  const margemLucro = precoCusto > 0 ? (((precoVenda - precoCusto) / precoCusto) * 100).toFixed(1) : '100.0';
+
+  // Se não há custo cadastrado, "margem" não tem um número honesto pra mostrar
+  // (não é 100% — é indefinido, porque não sabemos quanto esse produto custou).
+  // E quando o custo é MAIOR que o preço de venda, a margem é negativa de
+  // verdade — o produto dá prejuízo a cada venda, e isso precisa aparecer em
+  // vermelho, não em verde como se fosse uma boa notícia.
+  const margemDefinida = precoCusto > 0;
+  const margemLucroNum = margemDefinida ? ((precoVenda - precoCusto) / precoCusto) * 100 : null;
+  const margemNegativa = margemLucroNum !== null && margemLucroNum < 0;
 
   const renderBadgeMovimentacao = (tipo: string) => {
     switch (tipo) {
@@ -196,33 +207,45 @@ export default function ProdutoDetalhes() {
         <div className="flex items-center gap-4">
           <Link to="/produtos"><Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link>
           <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
+            <h1 className="text-3xl font-bold flex items-center gap-3 flex-wrap">
               {produto.nome}
               {produto.finalidadeEstoque === 'USO_INTERNO' && <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-md uppercase">Uso Interno</span>}
+              {estoqueBaixo && (
+                <span className="text-xs bg-destructive/10 text-destructive px-2 py-1 rounded-md uppercase flex items-center gap-1 border border-destructive/20">
+                  <AlertTriangle className="h-3 w-3" /> Estoque Baixo
+                </span>
+              )}
             </h1>
             <p className="text-muted-foreground">Detalhes do Estoque</p>
           </div>
         </div>
-        
+
         <div className="flex gap-2">
           <Button variant="destructive" onClick={() => setDialogPerdaOpen(true)} className="gap-2">
             <AlertTriangle className="h-4 w-4" /> Registar Perda
           </Button>
 
-          <Button onClick={() => { 
+          <Button onClick={() => {
               setProdutoEditando({
                   ...produto,
                   precoCusto: produto.precoCusto === 0 ? '' : produto.precoCusto.toString(),
                   precoVenda: produto.precoVenda === 0 ? '' : produto.precoVenda.toString(),
                   estoqueMinimo: (produto.estoqueMinimo || produto.quantidadeMinima) === 0 ? '' : (produto.estoqueMinimo || produto.quantidadeMinima).toString(),
-                  impostos: produto.impostos || [] // 🟢 Puxa os impostos do produto
-              }); 
-              setDialogEditOpen(true); 
+                  impostos: produto.impostos || []
+              });
+              setDialogEditOpen(true);
             }} className="gap-2">
             <Edit className="h-4 w-4" /> Editar Produto
           </Button>
         </div>
       </div>
+
+      {estoqueBaixo && (
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg p-3 flex items-center gap-2 text-sm">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          Estoque atual ({quantidade}) está abaixo do mínimo configurado ({estoqueMinimo}). Considere repor.
+        </div>
+      )}
 
       <Dialog open={dialogPerdaOpen} onOpenChange={setDialogPerdaOpen}>
         <DialogContent className="max-w-md bg-card text-card-foreground border-border">
@@ -237,26 +260,26 @@ export default function ProdutoDetalhes() {
             </div>
             <div className="space-y-2">
               <Label>Quantidade Perdida</Label>
-              <Input 
-                type="number" 
-                min="1" 
-                placeholder="Ex: 2" 
-                value={perdaQuantidade} 
+              <Input
+                type="number"
+                min="1"
+                placeholder="Ex: 2"
+                value={perdaQuantidade}
                 onChange={e => {
                   const val = e.target.value;
                   if (val.includes('-')) return;
                   if(val === '') setPerdaQuantidade('');
                   else if(Number(val) > 0) setPerdaQuantidade(val);
-                }} 
+                }}
                 className="bg-background text-foreground"
               />
             </div>
             <div className="space-y-2">
               <Label>Motivo (Avaria, Validade, Furto, etc.)</Label>
-              <Input 
-                placeholder="Ex: Produto rasgou na prateleira" 
-                value={perdaMotivo} 
-                onChange={e => setPerdaMotivo(e.target.value)} 
+              <Input
+                placeholder="Ex: Produto rasgou na prateleira"
+                value={perdaMotivo}
+                onChange={e => setPerdaMotivo(e.target.value)}
                 className="bg-background text-foreground"
               />
             </div>
@@ -276,43 +299,48 @@ export default function ProdutoDetalhes() {
               <div className="space-y-2 col-span-2"><Label>Nome do Produto</Label><Input className="bg-background" value={produtoEditando.nome} onChange={e => setProdutoEditando({...produtoEditando, nome: e.target.value})} /></div>
               <div className="space-y-2"><Label>Categoria</Label><Input className="bg-background" value={produtoEditando.categoria || ''} onChange={e => setProdutoEditando({...produtoEditando, categoria: e.target.value})} /></div>
               <div className="space-y-2"><Label>Código de Barras</Label><Input className="bg-background" value={produtoEditando.codigoBarras || ''} onChange={e => setProdutoEditando({...produtoEditando, codigoBarras: e.target.value})} /></div>
-              
+
               <div className="space-y-2">
                   <Label>Preço de Custo (R$)</Label>
-                  <Input 
-                      className="bg-background" 
-                      type="number" step="0.01" min="0" 
-                      value={produtoEditando.precoCusto} 
-                      onChange={e => handleChangeGenerico('precoCusto', e)} 
+                  <Input
+                      className="bg-background"
+                      type="number" step="0.01" min="0"
+                      value={produtoEditando.precoCusto}
+                      onChange={e => handleChangeGenerico('precoCusto', e)}
                   />
               </div>
               <div className="space-y-2">
                   <Label>Preço de Venda (R$)</Label>
-                  <Input 
-                      className="bg-background" 
-                      type="number" step="0.01" min="0" 
-                      value={produtoEditando.precoVenda} 
-                      onChange={e => handleChangeGenerico('precoVenda', e)} 
+                  <Input
+                      className="bg-background"
+                      type="number" step="0.01" min="0"
+                      value={produtoEditando.precoVenda}
+                      onChange={e => handleChangeGenerico('precoVenda', e)}
                   />
               </div>
+              {Number(produtoEditando.precoCusto) > 0 && Number(produtoEditando.precoVenda) > 0 &&
+                Number(produtoEditando.precoCusto) > Number(produtoEditando.precoVenda) && (
+                <p className="text-xs text-destructive col-span-2 -mt-2 flex items-center gap-1">
+                  <TrendingDown className="h-3 w-3" /> Custo maior que o preço de venda — margem negativa.
+                </p>
+              )}
               <div className="space-y-2">
                   <Label>Estoque Mínimo</Label>
-                  <Input 
-                      className="bg-background" 
-                      type="number" min="0" 
-                      value={produtoEditando.estoqueMinimo} 
+                  <Input
+                      className="bg-background"
+                      type="number" min="0"
+                      value={produtoEditando.estoqueMinimo}
                       onChange={e => {
                           handleChangeGenerico('estoqueMinimo', e);
                           handleChangeGenerico('quantidadeMinima', e);
-                      }} 
+                      }}
                   />
               </div>
               <div className="space-y-2"></div>
-              
+
               <div className="space-y-2"><Label>NCM</Label><Input className="bg-background" value={produtoEditando.ncm || ''} onChange={e => setProdutoEditando({...produtoEditando, ncm: e.target.value})} /></div>
               <div className="space-y-2"><Label>CFOP</Label><Input className="bg-background" value={produtoEditando.cfop || ''} onChange={e => setProdutoEditando({...produtoEditando, cfop: e.target.value})} /></div>
 
-              {/* 🟢 EDIÇÃO DOS IMPOSTOS ADICIONADA AQUI DENTRO COMO VOCÊ PEDIU */}
               <div className="col-span-2 pt-4 border-t border-border mt-2">
                 <div className="flex justify-between items-center mb-2">
                   <Label className="text-foreground font-semibold">Impostos Associados</Label>
@@ -343,7 +371,6 @@ export default function ProdutoDetalhes() {
                 ))}
                 {(produtoEditando.impostos?.length === 0) && <p className="text-xs text-muted-foreground italic">Nenhum imposto associado.</p>}
               </div>
-              {/* 🟢 FIM DA EDIÇÃO DE IMPOSTOS */}
 
             </div>
           )}
@@ -370,13 +397,13 @@ export default function ProdutoDetalhes() {
                     <div><p className="text-sm text-muted-foreground mb-1">Fornecedor Principal</p><p className="font-medium text-primary">{produto.fornecedor?.nome || 'Nenhum fornecedor vinculado'}</p></div>
                   </div>
                   <div className="space-y-5">
-                    <div className="bg-primary/10 p-4 rounded-xl border border-primary/20">
-                      <p className="text-sm text-primary font-semibold mb-1">Quantidade Atual</p>
-                      <p className="text-4xl font-black text-primary">{quantidade} <span className="text-base font-medium">{produto.unidade || 'UN'}</span></p>
+                    <div className={`p-4 rounded-xl border ${estoqueBaixo ? 'bg-destructive/10 border-destructive/20' : 'bg-primary/10 border-primary/20'}`}>
+                      <p className={`text-sm font-semibold mb-1 ${estoqueBaixo ? 'text-destructive' : 'text-primary'}`}>Quantidade Atual</p>
+                      <p className={`text-4xl font-black ${estoqueBaixo ? 'text-destructive' : 'text-primary'}`}>{quantidade} <span className="text-base font-medium">{produto.unidade || 'UN'}</span></p>
                     </div>
                     <div className="flex gap-6">
-                      <div><p className="text-sm text-muted-foreground mb-1">Estoque Mínimo</p><p className="text-xl font-bold text-foreground">{produto.estoqueMinimo || produto.quantidadeMinima}</p></div>
-                      <div><p className="text-sm text-muted-foreground mb-1">Preço Venda</p><p className="text-xl font-bold text-green-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(precoVenda)}</p></div>
+                      <div><p className="text-sm text-muted-foreground mb-1">Estoque Mínimo</p><p className="text-xl font-bold text-foreground">{estoqueMinimo}</p></div>
+                      <div><p className="text-sm text-muted-foreground mb-1">Preço Venda</p><p className="text-xl font-bold text-green-500">{formatBRL(precoVenda)}</p></div>
                     </div>
                   </div>
                 </div>
@@ -384,9 +411,23 @@ export default function ProdutoDetalhes() {
             </Card>
 
             <div className="space-y-4">
-              <Card className="bg-card border-border shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Custo Médio Ponderado</CardTitle><Package className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(precoCusto)}</div><p className="text-xs text-muted-foreground mt-1">Baseado nas compras</p></CardContent></Card>
-              <Card className="bg-card border-border shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Valor Imobilizado (Estoque)</CardTitle><Package className="h-4 w-4 text-primary" /></CardHeader><CardContent><div className="text-2xl font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorTotalEstoque)}</div></CardContent></Card>
-              <Card className="bg-card border-border shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Margem de Lucro</CardTitle><ShoppingCart className="h-4 w-4 text-green-500" /></CardHeader><CardContent><div className="text-2xl font-bold text-green-500">{margemLucro}%</div></CardContent></Card>
+              <Card className="bg-card border-border shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Custo Médio Ponderado</CardTitle><Package className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-foreground">{formatBRL(precoCusto)}</div><p className="text-xs text-muted-foreground mt-1">Baseado nas compras</p></CardContent></Card>
+              <Card className="bg-card border-border shadow-sm"><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Valor Imobilizado (Estoque)</CardTitle><Package className="h-4 w-4 text-primary" /></CardHeader><CardContent><div className="text-2xl font-bold">{formatBRL(valorTotalEstoque)}</div></CardContent></Card>
+              <Card className={`bg-card border-border shadow-sm ${margemNegativa ? 'border-destructive/30' : ''}`}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Margem de Lucro</CardTitle>
+                  {margemNegativa
+                    ? <TrendingDown className="h-4 w-4 text-destructive" />
+                    : <ShoppingCart className="h-4 w-4 text-green-500" />}
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-2xl font-bold ${!margemDefinida ? 'text-muted-foreground' : margemNegativa ? 'text-destructive' : 'text-green-500'}`}>
+                    {margemDefinida ? `${margemLucroNum!.toFixed(1)}%` : '—'}
+                  </div>
+                  {!margemDefinida && <p className="text-xs text-muted-foreground mt-1">Cadastre o preço de custo para calcular</p>}
+                  {margemNegativa && <p className="text-xs text-destructive mt-1">Vendendo abaixo do custo</p>}
+                </CardContent>
+              </Card>
             </div>
           </div>
         </TabsContent>
@@ -411,7 +452,7 @@ export default function ProdutoDetalhes() {
                   <p className="text-xl font-medium text-foreground">{produto.finalidadeEstoque || 'REVENDA'}</p>
                 </div>
               </div>
-              
+
               <div>
                 <h4 className="text-lg font-semibold mb-4 border-b border-border pb-2 text-foreground">Impostos Associados</h4>
                 {(!produto.impostos || produto.impostos.length === 0) ? (
@@ -433,7 +474,7 @@ export default function ProdutoDetalhes() {
                         <TableRow key={i}>
                           <TableCell className="font-bold text-foreground">{imp.sigla}</TableCell>
                           <TableCell className="text-muted-foreground">{imp.esfera}</TableCell>
-                          <TableCell className="text-right font-mono text-primary">{imp.aliquota.toFixed(2)}%</TableCell>
+                          <TableCell className="text-right font-mono text-primary">{Number(imp.aliquota ?? 0).toFixed(2)}%</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -469,9 +510,9 @@ export default function ProdutoDetalhes() {
                         </TableCell>
                         <TableCell className="font-bold text-right text-foreground">{mov.quantidade}</TableCell>
                         <TableCell className="text-center">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleBaixarNF(mov.id)}
                             title="Baixar Comprovante Fiscal"
                             className="hover:bg-primary/10"

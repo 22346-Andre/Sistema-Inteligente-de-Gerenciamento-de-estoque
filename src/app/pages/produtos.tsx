@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams, Link, useNavigate } from 'react-router'; // 🟢 useNavigate importado aqui
+import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams, Link, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -20,32 +20,47 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Plus, Search, Edit, Trash2, AlertCircle } from 'lucide-react';
-import { produtoService, Produto, ProdutoDTO, Imposto } from '../services/produto.service'; 
+import { Plus, Search, Edit, Trash2, AlertCircle, PackageSearch, Boxes, TriangleAlert, Wallet } from 'lucide-react';
+import { produtoService, Produto, ProdutoDTO, Imposto } from '../services/produto.service';
 import { fornecedorService, Fornecedor } from '../services/fornecedor.service';
 import { toast } from 'sonner';
 import api from '../services/api';
 
+const formatBRL = (valor: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+
+// A API devolve o estoque mínimo do produto como "estoqueMinimo" (é assim que a
+// entidade Produto chama o campo lá no backend). O DTO de ENVIO (criar/editar)
+// usa "quantidadeMinima" — são objetos diferentes, com nomes diferentes de
+// propósito. Esse helper cobre os dois pra não depender de qual endpoint
+// preencheu o objeto.
+const getEstoqueMinimo = (produto: Produto): number =>
+  (produto as any).estoqueMinimo ?? (produto as any).quantidadeMinima ?? 0;
+
+const BADGE_ABC: Record<string, string> = {
+  A: 'bg-green-500/20 text-green-500 border-green-500/20',
+  B: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/20',
+  C: 'bg-destructive/20 text-destructive border-destructive/20',
+};
+
 export default function Produtos() {
-  const navigate = useNavigate(); // 🟢 Função de navegação ativada
+  const navigate = useNavigate();
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
-  
+
   const [searchParams] = useSearchParams();
   const [busca, setBusca] = useState(searchParams.get('q') || '');
-  
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // 🟢 Todo o código do Modal de Edição foi removido daqui para ficar leve e sem conflitos!
 
   const estadoInicialProduto = {
     nome: '',
     codigoBarras: '',
-    quantidadeMinima: '', 
-    quantidade: '',       
-    precoVenda: '',       
-    precoCusto: '',       
+    quantidadeMinima: '',
+    quantidade: '',
+    precoVenda: '',
+    precoCusto: '',
     categoria: '',
     fornecedorId: 0,
     ncm: '',
@@ -145,6 +160,15 @@ export default function Produtos() {
     produto.codigoBarras?.includes(busca)
   );
 
+  // Resumo rápido no topo da página — pra bater o olho sem contar linha por
+  // linha na tabela.
+  const resumo = useMemo(() => {
+    const totalProdutos = produtos.length;
+    const estoqueBaixoCount = produtos.filter(p => p.quantidade < getEstoqueMinimo(p)).length;
+    const valorTotalEstoque = produtos.reduce((acc, p) => acc + (p.quantidade || 0) * ((p as any).precoCusto || 0), 0);
+    return { totalProdutos, estoqueBaixoCount, valorTotalEstoque };
+  }, [produtos]);
+
   // Blindagem contra números negativos
   const handleNumberInput = (e: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<any>>, field: string) => {
     let val = e.target.value.replace(/-/g, '');
@@ -154,7 +178,7 @@ export default function Produtos() {
     }
     const num = Number(val);
     if (!isNaN(num)) {
-        setter((prev: any) => ({ ...prev, [field]: val.replace(/^0+(?=\d)/, '') })); 
+        setter((prev: any) => ({ ...prev, [field]: val.replace(/^0+(?=\d)/, '') }));
     }
   };
 
@@ -179,7 +203,7 @@ export default function Produtos() {
           <h1 className="text-3xl font-bold">Catálogo de Produtos</h1>
           <p className="text-muted-foreground">Gerencie todos os seus produtos e tributações</p>
         </div>
-        
+
         {/* --- MODAL DE CRIAR PRODUTO --- */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -190,7 +214,7 @@ export default function Produtos() {
               <DialogTitle>Adicionar Novo Produto</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              
+
               <div className="bg-muted p-4 rounded-lg space-y-4">
                 <h3 className="font-semibold text-foreground border-b border-border pb-2">Informações Básicas</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -229,11 +253,16 @@ export default function Produtos() {
                       <Input className="bg-background" type="number" min="0" step="0.01" onKeyDown={preventInvalidKeys} value={novoProduto.precoVenda} onChange={e => handleNumberInput(e, setNovoProduto, 'precoVenda')} />
                   </div>
                 </div>
+                {Number(novoProduto.precoVenda) > 0 && Number(novoProduto.precoCusto) > Number(novoProduto.precoVenda) && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <TriangleAlert className="h-3 w-3" /> O preço de custo está maior que o de venda — esse produto vai dar prejuízo a cada unidade vendida.
+                  </p>
+                )}
               </div>
 
               <div className="bg-muted p-4 rounded-lg space-y-4 border border-border">
                 <h3 className="font-semibold text-foreground border-b border-border pb-2">Dados Fiscais e Tributação</h3>
-                
+
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Finalidade do Estoque</Label>
@@ -288,6 +317,37 @@ export default function Produtos() {
         </Dialog>
       </div>
 
+      {/* Resumo rápido */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="bg-card border-border shadow-sm">
+          <CardContent className="pt-6 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10"><Boxes className="h-5 w-5 text-primary" /></div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{resumo.totalProdutos}</p>
+              <p className="text-xs text-muted-foreground">Produtos cadastrados</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className={`bg-card border-border shadow-sm ${resumo.estoqueBaixoCount > 0 ? 'border-destructive/30' : ''}`}>
+          <CardContent className="pt-6 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-destructive/10"><TriangleAlert className="h-5 w-5 text-destructive" /></div>
+            <div>
+              <p className={`text-2xl font-bold ${resumo.estoqueBaixoCount > 0 ? 'text-destructive' : 'text-foreground'}`}>{resumo.estoqueBaixoCount}</p>
+              <p className="text-xs text-muted-foreground">Com estoque abaixo do mínimo</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border shadow-sm">
+          <CardContent className="pt-6 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-green-500/10"><Wallet className="h-5 w-5 text-green-600" /></div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{formatBRL(resumo.valorTotalEstoque)}</p>
+              <p className="text-xs text-muted-foreground">Valor total em estoque (custo)</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card className="bg-card border-border shadow-sm">
         <CardHeader>
           <div className="relative flex-1">
@@ -296,82 +356,75 @@ export default function Produtos() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Código de Barras</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead className="text-center">Curva ABC</TableHead>
-                <TableHead className="text-right">Quantidade</TableHead>
-                <TableHead className="text-right">Preço Venda</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {produtosFiltrados.map((produto) => {
-                const estoqueBaixo = produto.quantidade < produto.quantidadeMinima;
-                return (
-                  <TableRow key={produto.id} className="hover:bg-muted/50">
-                    <TableCell>
-                      <div className="flex items-center gap-2" title={estoqueBaixo ? "Estoque abaixo do mínimo!" : undefined}>
-                        {estoqueBaixo && <AlertCircle className="h-4 w-4 text-destructive" />}
-                        <Link to={`/produtos/${produto.id}`} className="font-medium text-foreground hover:underline">
-                          {produto.nome}
-                        </Link>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{produto.codigoBarras || '-'}</TableCell>
-                    <TableCell className="text-muted-foreground">{produto.categoria || '-'}</TableCell>
-                    
-                    <TableCell className="text-center">
-                      {produto.classificacaoABC === 'A' && (
-                        <span className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-green-500/20 text-green-500 border border-green-500/20">
-                          Classe A
-                        </span>
-                      )}
-                      {produto.classificacaoABC === 'B' && (
-                        <span className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-yellow-500/20 text-yellow-500 border border-yellow-500/20">
-                          Classe B
-                        </span>
-                      )}
-                      {produto.classificacaoABC === 'C' && (
-                        <span className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-destructive/20 text-destructive border border-destructive/20">
-                          Classe C
-                        </span>
-                      )}
-                      {!produto.classificacaoABC && (
-                        <span className="text-[10px] text-muted-foreground italic">Em análise</span>
-                      )}
-                    </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Código de Barras</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead className="text-center">Curva ABC</TableHead>
+                  <TableHead className="text-right">Quantidade</TableHead>
+                  <TableHead className="text-right">Preço Venda</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {produtosFiltrados.map((produto) => {
+                  const estoqueMinimo = getEstoqueMinimo(produto);
+                  const estoqueBaixo = (produto.quantidade || 0) < estoqueMinimo;
+                  return (
+                    <TableRow key={produto.id} className="hover:bg-muted/50">
+                      <TableCell>
+                        <div className="flex items-center gap-2" title={estoqueBaixo ? `Estoque abaixo do mínimo! (mín: ${estoqueMinimo})` : undefined}>
+                          {estoqueBaixo && <AlertCircle className="h-4 w-4 text-destructive shrink-0" />}
+                          <Link to={`/produtos/${produto.id}`} className="font-medium text-foreground hover:underline">
+                            {produto.nome}
+                          </Link>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{produto.codigoBarras || '-'}</TableCell>
+                      <TableCell className="text-muted-foreground">{produto.categoria || '-'}</TableCell>
 
-                    <TableCell className={`text-right ${estoqueBaixo ? 'text-destructive font-bold' : 'text-foreground'}`}>{produto.quantidade || 0}</TableCell>
-                    <TableCell className="text-right text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(produto.precoVenda || 0)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        
-                        {/* 🟢 O botão Editar redireciona o utilizador diretamente para a página de Detalhes do Produto */}
-                        <Button 
-                           size="sm" 
-                           variant="outline" 
-                           className="hover:bg-accent" 
-                           onClick={() => navigate(`/produtos/${produto.id}`)}
-                        >
-                          <Edit className="h-4 w-4 text-foreground" />
-                        </Button>
+                      <TableCell className="text-center">
+                        {produto.classificacaoABC && BADGE_ABC[produto.classificacaoABC] ? (
+                          <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${BADGE_ABC[produto.classificacaoABC]}`}>
+                            Classe {produto.classificacaoABC}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground italic">Em análise</span>
+                        )}
+                      </TableCell>
 
-                        <Button size="sm" variant="outline" onClick={() => handleExcluirProduto(produto.id)} className="text-destructive hover:bg-destructive/10 hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                      <TableCell className={`text-right ${estoqueBaixo ? 'text-destructive font-bold' : 'text-foreground'}`}>{produto.quantidade || 0}</TableCell>
+                      <TableCell className="text-right text-foreground">{formatBRL(produto.precoVenda || 0)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                             size="sm"
+                             variant="outline"
+                             className="hover:bg-accent"
+                             onClick={() => navigate(`/produtos/${produto.id}`)}
+                          >
+                            <Edit className="h-4 w-4 text-foreground" />
+                          </Button>
+
+                          <Button size="sm" variant="outline" onClick={() => handleExcluirProduto(produto.id)} className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
           {produtosFiltrados.length === 0 && !loading && (
-            <div className="text-center py-12 text-muted-foreground">Nenhum produto encontrado.</div>
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <PackageSearch className="h-10 w-10 mb-2 opacity-50" />
+              <p>Nenhum produto encontrado.</p>
+            </div>
           )}
         </CardContent>
       </Card>
