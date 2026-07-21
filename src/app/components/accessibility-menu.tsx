@@ -9,8 +9,8 @@ export function AccessibilityMenu() {
 
   return (
     <>
-      {/* 🚨 CORRIGIDO: Botão Flutuante - Agora usa "bottom-32" para saltar o VLibras */}
-      <div className="fixed right-4 bottom-90 z-50 transition-all duration-300">
+      
+      <div className="fixed right-4 bottom-32 z-50 transition-all duration-300">
         {!isOpen ? (
           <Button
             onClick={() => setIsOpen(true)}
