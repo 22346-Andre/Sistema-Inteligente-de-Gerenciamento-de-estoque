@@ -9,7 +9,7 @@ import Fornecedores from './pages/fornecedores';
 import Importacao from './pages/importacao';
 import Scanner from './pages/scanner';
 import Configuracoes from './pages/configuracoes';
-import Webhooks from './pages/Webhooks';
+import Webhooks from './pages/webhooks';
 import SugestoesCompra from './pages/sugestoes-compra';
 import Relatorios from './pages/relatorios';
 import Perfil from './pages/Perfil';
