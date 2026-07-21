@@ -9,6 +9,7 @@ import Fornecedores from './pages/fornecedores';
 import Importacao from './pages/importacao';
 import Scanner from './pages/scanner';
 import Configuracoes from './pages/configuracoes';
+import Webhooks from './pages/Webhooks';
 import SugestoesCompra from './pages/sugestoes-compra';
 import Relatorios from './pages/relatorios';
 import Perfil from './pages/Perfil';
@@ -79,6 +80,11 @@ export const router = createBrowserRouter([
           {
             path: 'configuracoes',
             element: <Configuracoes />
+          },
+          
+          {
+            path: 'webhooks',
+            element: <Webhooks />
           },
           // 🚨 A nova rota de Perfil adicionada à catraca!
           {

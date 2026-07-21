@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, TrendingUp, Users, Upload, Scan, X, ShoppingCart, FileText, Settings, Wallet } from 'lucide-react';
+import { LayoutDashboard, Package, TrendingUp, Users, Upload, Scan, X, ShoppingCart, FileText, Settings, Wallet, Webhook } from 'lucide-react';
 import { Link, useLocation } from 'react-router';
 import { Button } from '../components/ui/button';
 
@@ -17,6 +17,7 @@ const menuItems = [
   { path: '/importacao', icon: Upload, label: 'Importação CSV' },
   { path: '/relatorios', icon: FileText, label: 'Relatórios' },
   { path: '/configuracoes', icon: Settings, label: 'Configurações' },
+  { path: '/webhooks', icon: Webhook, label: 'Webhooks' },
 ];
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
