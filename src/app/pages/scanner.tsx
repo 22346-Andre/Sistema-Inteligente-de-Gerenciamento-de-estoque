@@ -1,3 +1,5 @@
+
+
 import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -13,12 +15,12 @@ import { ptBR } from 'date-fns/locale';
 import api from '../services/api';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { produtoService, Produto } from '../services/produto.service';
-
+ 
 interface ItemCarrinho {
   produto: Produto;
   quantidade: number;
 }
-
+ 
 // Mapeamento de tipo de movimentação -> como exibir no histórico.
 // Centralizado aqui pra não espalhar "se ENTRADA então azul senão verde" pelo JSX
 // (era isso que fazia QUEBRA_PERDA aparecer com a mesma cor de uma venda).
@@ -27,43 +29,78 @@ const TIPO_MOVIMENTACAO_INFO: Record<string, { label: string; badge: string }> =
   SAIDA: { label: 'Venda', badge: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
   QUEBRA_PERDA: { label: 'Perda/Quebra', badge: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
 };
-
+ 
 function infoTipoMovimentacao(tipo: string) {
   return TIPO_MOVIMENTACAO_INFO[tipo] ?? { label: tipo, badge: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' };
 }
-
+ 
+/**
+ * Extrai uma mensagem legível dos formatos de erro que a API pode devolver:
+ * - string pura (é o que o ImportacaoController retorna hoje: BAD_REQUEST/CONFLICT/
+ *   INTERNAL_SERVER_ERROR com .body(String))
+ * - { erro: string, detalhes?: {...} } (formato do TratadorDeErros global)
+ * - { message: string } (formato manual usado pelo MovimentacaoController no /pdv)
+ * - fallback para error.message (erro de rede, timeout, CORS, etc.)
+ *
+ * Mesmo padrão já usado em importacao.tsx e fornecedores.tsx — mantenha os três
+ * sincronizados se decidir centralizar isso em api.ts no futuro.
+ */
+function extrairMensagemErro(error: any, fallback: string): string {
+  const data = error?.response?.data;
+ 
+  if (typeof data === 'string' && data.trim()) return data;
+ 
+  if (data && typeof data === 'object') {
+    if (data.detalhes && typeof data.detalhes === 'object') {
+      const mensagens = Object.values(data.detalhes).filter(Boolean);
+      if (mensagens.length) return mensagens.join(' | ');
+    }
+    if (typeof data.erro === 'string' && data.erro) return data.erro;
+    if (typeof data.message === 'string' && data.message) return data.message;
+  }
+ 
+  if (error?.message === 'Network Error') {
+    return 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.';
+  }
+ 
+  return error?.message || fallback;
+}
+ 
 export default function ScannerPDV() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [termoBusca, setTermoBusca] = useState('');
   const [inputBuscaFocado, setInputBuscaFocado] = useState(false);
-
+ 
   // CARRINHO
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
-
+ 
   // SCANNER
   const [codigoBarras, setCodigoBarras] = useState('');
   const [scannerAtivo, setScannerAtivo] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
+ 
   // HISTÓRICO
   const [historicoAgrupado, setHistoricoAgrupado] = useState<any[]>([]);
   const [carregandoHistorico, setCarregandoHistorico] = useState(false);
-
+ 
   // XML
+  // 🟢 CORRIGIDO: o backend (/importacao/xml-direto) extrai E salva em uma
+  // única chamada, devolvendo um relatório em texto — não uma lista de itens
+  // pra confirmar em duas etapas. "resultados" agora guarda esse texto.
   const [file, setFile] = useState<File | null>(null);
-  const [resultados, setResultados] = useState<any[]>([]);
+  const [relatorioImportacao, setRelatorioImportacao] = useState<string | null>(null);
   const [loadingXml, setLoadingXml] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+ 
   // ESTADOS DO MODAL DE PERDAS
   const [modalPerdaAberto, setModalPerdaAberto] = useState(false);
   const [motivoPerda, setMotivoPerda] = useState('');
-
+ 
   useEffect(() => {
     carregarProdutos();
     carregarHistorico();
   }, []);
-
+ 
   const carregarProdutos = async () => {
     try {
       setProdutos(await produtoService.listarTodos());
@@ -71,16 +108,16 @@ export default function ScannerPDV() {
       toast.error('Erro ao carregar catálogo de produtos.');
     }
   };
-
+ 
   const carregarHistorico = async () => {
     setCarregandoHistorico(true);
     try {
       const res = await api.get('/movimentacoes');
-
+ 
       const agrupado = res.data.reduce((acc: any, mov: any) => {
         const isLoteValid = mov.chaveNotaFiscal && mov.chaveNotaFiscal.trim().length > 0;
         const chaveAgrupamento = isLoteValid ? mov.chaveNotaFiscal : `avulso-${new Date(mov.dataMovimentacao).getTime()}`;
-
+ 
         if (!acc[chaveAgrupamento]) {
           acc[chaveAgrupamento] = {
             chaveReal: isLoteValid ? mov.chaveNotaFiscal : mov.id.toString(),
@@ -93,9 +130,9 @@ export default function ScannerPDV() {
             isLote: isLoteValid
           };
         }
-
+ 
         acc[chaveAgrupamento].totalItens += mov.quantidade;
-
+ 
         // Base de valor correta por tipo de operação: uma ENTRADA (compra) ou uma
         // PERDA (prejuízo/custo perdido) devem ser valoradas pelo preço de CUSTO;
         // só uma VENDA de fato realiza o preço de venda. Antes, o cálculo sempre
@@ -105,13 +142,13 @@ export default function ScannerPDV() {
           ? (mov.produto?.precoVenda ?? mov.produto?.precoCusto ?? 0)
           : (mov.produto?.precoCusto ?? mov.produto?.precoVenda ?? 0);
         acc[chaveAgrupamento].valorTotal += mov.quantidade * precoBase;
-
+ 
         if (acc[chaveAgrupamento].nomes.length < 2 && !acc[chaveAgrupamento].nomes.includes(mov.produto?.nome)) {
           acc[chaveAgrupamento].nomes.push(mov.produto?.nome);
         }
         return acc;
       }, {});
-
+ 
       setHistoricoAgrupado(Object.values(agrupado).sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime()));
     } catch (e) {
       console.error("Erro ao carregar histórico", e);
@@ -119,11 +156,11 @@ export default function ScannerPDV() {
       setCarregandoHistorico(false);
     }
   };
-
+ 
   useEffect(() => {
     if (inputRef.current && !scannerAtivo && !inputBuscaFocado && !modalPerdaAberto) inputRef.current.focus();
   }, [scannerAtivo, codigoBarras, inputBuscaFocado, modalPerdaAberto]);
-
+ 
   const processarCodigoLido = (codigo: string) => {
     const produtoEncontrado = produtos.find(p => p.codigoBarras === codigo);
     if (produtoEncontrado) {
@@ -133,19 +170,19 @@ export default function ScannerPDV() {
     }
     setCodigoBarras('');
   };
-
+ 
   const adicionarAoCarrinho = (produto: Produto) => {
     setCarrinho(prev => {
       const existente = prev.find(item => item.produto.id === produto.id);
       const qtdAtual = existente ? existente.quantidade : 0;
-
+ 
       // Trava no estoque disponível em vez de deixar acumular infinitamente e só
       // avisar lá na frente, na hora de finalizar a venda.
       if (produto.quantidade > 0 && qtdAtual + 1 > produto.quantidade) {
         toast.warning(`Estoque máximo atingido para "${produto.nome}" (${produto.quantidade} disponíveis).`);
         return prev;
       }
-
+ 
       if (existente) {
         toast.success(`${produto.nome} — quantidade atualizada.`);
         return prev.map(item => item.produto.id === produto.id ? { ...item, quantidade: item.quantidade + 1 } : item);
@@ -155,7 +192,7 @@ export default function ScannerPDV() {
     });
     setTermoBusca('');
   };
-
+ 
   const alterarQuantidade = (produtoId: number, novaQtd: number) => {
     if (novaQtd < 1) return;
     setCarrinho(prev => prev.map(item => {
@@ -167,17 +204,17 @@ export default function ScannerPDV() {
       return { ...item, quantidade: novaQtd };
     }));
   };
-
+ 
   const removerDoCarrinho = (produtoId: number) => {
     setCarrinho(prev => prev.filter(item => item.produto.id !== produtoId));
   };
-
+ 
   const limparCarrinho = () => setCarrinho([]);
-
+ 
   const totalCarrinho = carrinho.reduce((acc, item) => acc + ((item.produto.precoVenda || item.produto.precoCusto || 0) * item.quantidade), 0);
   const totalItens = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
   const carrinhoExcedeEstoque = carrinho.some(item => item.quantidade > item.produto.quantidade);
-
+ 
   useEffect(() => {
     let scanner: Html5QrcodeScanner | null = null;
     if (scannerAtivo) {
@@ -187,7 +224,7 @@ export default function ScannerPDV() {
     return () => { if (scanner) scanner.clear().catch(() => {}); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scannerAtivo]);
-
+ 
   const handleKeyDownPistola = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -195,12 +232,12 @@ export default function ScannerPDV() {
       processarCodigoLido(codigoBarras.trim());
     }
   };
-
+ 
   const produtosFiltrados = produtos.filter(p =>
     p.nome.toLowerCase().includes(termoBusca.toLowerCase()) ||
     (p.codigoBarras && p.codigoBarras.includes(termoBusca))
   );
-
+ 
   const handleBaixarNF = async (grp: any, tipoFormato: 'danfe' | 'cupom') => {
     try {
       toast.loading(`A gerar ${tipoFormato === 'danfe' ? 'DANFE A4' : 'Cupom'}...`, { id: 'nf' });
@@ -209,12 +246,14 @@ export default function ScannerPDV() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a'); link.href = url; link.setAttribute('download', `${tipoFormato}_operacao_${grp.chaveReal}.pdf`); document.body.appendChild(link); link.click();
       toast.success("Impresso com sucesso!", { id: 'nf' });
-    } catch (e) { toast.error("Erro na impressão. O ficheiro pode não existir.", { id: 'nf' }); }
+    } catch (e) {
+      toast.error(extrairMensagemErro(e, "Erro na impressão. O ficheiro pode não existir."), { id: 'nf' });
+    }
   };
-
+ 
   const handleFinalizar = async (tipo: 'SAIDA' | 'ENTRADA') => {
     if (carrinho.length === 0) return;
-
+ 
     if (tipo === 'SAIDA') {
       for (const item of carrinho) {
         if (item.quantidade > item.produto.quantidade) {
@@ -223,12 +262,12 @@ export default function ScannerPDV() {
         }
       }
     }
-
+ 
     let itensProcessados = 0;
     try {
       toast.loading(`A processar ${tipo === 'SAIDA' ? 'Venda' : 'Entrada'}...`, { id: 'op' });
       const chaveUnica = Array.from({length: 15}, () => Math.floor(Math.random() * 10)).join('');
-
+ 
       for (const item of carrinho) {
         if (tipo === 'SAIDA') {
           await produtoService.registrarSaida(item.produto.id, {
@@ -241,12 +280,12 @@ export default function ScannerPDV() {
         }
         itensProcessados++;
       }
-
+ 
       toast.success("Operação concluída com sucesso!", { id: 'op' });
       setCarrinho([]);
       carregarProdutos();
       carregarHistorico();
-
+ 
       if (tipo === 'SAIDA') {
          const pseudoGrupo = { chaveReal: chaveUnica, isLote: true };
          handleBaixarNF(pseudoGrupo, 'cupom');
@@ -255,35 +294,35 @@ export default function ScannerPDV() {
       // Se parte do carrinho já foi processada antes do erro, o estoque real já
       // mudou no backend — atualiza a tela pra refletir isso em vez de deixar
       // números desatualizados na frente do operador do caixa.
-      const mensagemBase = error.response?.data?.message || error.response?.data?.erro || 'Erro ao finalizar a operação.';
+      const mensagemBase = extrairMensagemErro(error, 'Erro ao finalizar a operação.');
       const mensagem = itensProcessados > 0
         ? `${mensagemBase} (${itensProcessados} de ${carrinho.length} itens já foram processados antes da falha)`
         : mensagemBase;
       toast.error(mensagem, { id: 'op' });
-
+ 
       if (itensProcessados > 0) {
         carregarProdutos();
         carregarHistorico();
       }
     }
   };
-
+ 
   const handleRegistrarPerda = async () => {
     if (carrinho.length === 0) return;
     if (!motivoPerda.trim()) {
       toast.error("É obrigatório informar o motivo da perda.");
       return;
     }
-
+ 
     for (const item of carrinho) {
       if (item.quantidade > item.produto.quantidade) return toast.error(`Estoque insuficiente para a perda: ${item.produto.nome}`);
     }
-
+ 
     let itensProcessados = 0;
     try {
       toast.loading(`A registar perda no sistema...`, { id: 'perda' });
       const chaveUnica = Array.from({length: 15}, () => Math.floor(Math.random() * 10)).join('');
-
+ 
       for (const item of carrinho) {
         await produtoService.registrarSaida(item.produto.id, {
           quantidadeDesejada: item.quantidade,
@@ -293,7 +332,7 @@ export default function ScannerPDV() {
         });
         itensProcessados++;
       }
-
+ 
       toast.success("Quebra/Perda registada com sucesso!", { id: 'perda' });
       setModalPerdaAberto(false);
       setMotivoPerda('');
@@ -301,52 +340,70 @@ export default function ScannerPDV() {
       carregarProdutos();
       carregarHistorico();
     } catch (error: any) {
-      const mensagemBase = error.response?.data?.message || error.response?.data?.erro || 'Erro ao registar a perda.';
+      const mensagemBase = extrairMensagemErro(error, 'Erro ao registar a perda.');
       const mensagem = itensProcessados > 0
         ? `${mensagemBase} (${itensProcessados} de ${carrinho.length} itens já foram registados antes da falha)`
         : mensagemBase;
       toast.error(mensagem, { id: 'perda' });
-
+ 
       if (itensProcessados > 0) {
         carregarProdutos();
         carregarHistorico();
       }
     }
   };
-
+ 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer.files && e.dataTransfer.files.length > 0) validarEGuardarArquivo(e.dataTransfer.files[0]); };
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files.length > 0) validarEGuardarArquivo(e.target.files[0]); };
-  const validarEGuardarArquivo = (arquivo: File) => { if (!arquivo.name.toLowerCase().endsWith('.xml') && arquivo.type !== 'text/xml') return toast.error('Formato inválido! Envie .xml'); setFile(arquivo); setResultados([]); };
-
+  const validarEGuardarArquivo = (arquivo: File) => {
+    if (!arquivo.name.toLowerCase().endsWith('.xml') && arquivo.type !== 'text/xml') return toast.error('Formato inválido! Envie .xml');
+    setFile(arquivo);
+    setRelatorioImportacao(null);
+  };
+ 
+  // 🟢 CORRIGIDO: o backend não tem uma rota de "prévia" — POST /importacao/xml-direto
+  // já extrai os dados do XML da nota E salva os produtos/lotes no estoque em uma
+  // única chamada, retornando uma String de relatório (igual ao fluxo já usado em
+  // importacao.tsx). O antigo par de rotas '/importacao/processar-xml' +
+  // '/importacao/salvar' não existe no ImportacaoController e sempre resultava em 404.
   const handleProcessarXML = async () => {
     if (!file) return;
     try {
       setLoadingXml(true);
-      const formData = new FormData(); formData.append('file', file);
-      const response = await api.post('/importacao/processar-xml', formData, { headers: { 'Content-Type': 'multipart/form-data' }});
-      setResultados(response.data);
-      toast.success("Nota Fiscal lida com precisão!");
-    } catch (error: any) { toast.error("Erro de comunicação com o servidor."); } finally { setLoadingXml(false); }
+      const formData = new FormData();
+      formData.append('ficheiro', file); // mesmo nome de campo aceito pelo backend (ImportacaoController)
+ 
+      const response = await api.post('/importacao/xml-direto', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+ 
+      const relatorio = typeof response.data === 'string' ? response.data : 'Nota Fiscal processada e salva com sucesso!';
+      setRelatorioImportacao(relatorio);
+      toast.success("Nota Fiscal lida e salva no estoque com sucesso!");
+ 
+      carregarProdutos();
+      carregarHistorico();
+    } catch (error: any) {
+      // 409 = NotaFiscalDuplicadaException (chave de acesso já importada antes)
+      toast.error(extrairMensagemErro(error, "Erro ao processar o XML da Nota Fiscal."));
+    } finally {
+      setLoadingXml(false);
+    }
   };
-
-  const confirmarImportacao = async () => {
-    try {
-      const toastId = toast.loading("Aguarde... Atualizando estoque.");
-      await api.post('/importacao/salvar', resultados);
-      toast.dismiss(toastId);
-      toast.success(`${resultados.length} produtos adicionados com sucesso!`);
-      setResultados([]); setFile(null); carregarProdutos(); carregarHistorico();
-    } catch (error: any) { toast.dismiss(); toast.error("Erro ao salvar no banco."); }
+ 
+  const limparImportacaoXml = () => {
+    setFile(null);
+    setRelatorioImportacao(null);
   };
-
+ 
   return (
     <div className="space-y-6 w-full max-w-7xl mx-auto px-2 sm:px-4 md:px-6">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Caixa / PDV Aberto</h1>
         <p className="text-sm md:text-base text-muted-foreground">Passe os produtos no leitor para adicionar ao carrinho.</p>
       </div>
-
+ 
       <Tabs defaultValue="pdv" className="w-full">
         <div className="overflow-x-auto pb-2 mb-4">
           <TabsList className="flex w-full min-w-max md:grid md:grid-cols-3 md:w-full md:max-w-2xl">
@@ -355,10 +412,10 @@ export default function ScannerPDV() {
             <TabsTrigger value="historico" className="gap-2 flex-1"><Clock className="h-4 w-4" /> Histórico</TabsTrigger>
           </TabsList>
         </div>
-
+ 
         <TabsContent value="pdv">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
+ 
             <Card className="lg:col-span-5 border-t-4 border-t-blue-500 shadow-md flex flex-col bg-card border-border">
               <CardHeader className="pb-3 bg-muted/60 border-b border-border">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -378,7 +435,7 @@ export default function ScannerPDV() {
                     value={termoBusca} onChange={(e) => setTermoBusca(e.target.value)} onFocus={() => setInputBuscaFocado(true)} onBlur={() => setInputBuscaFocado(false)}
                   />
                 </div>
-
+ 
                 {termoBusca ? (
                   <div className="border border-border rounded-xl flex-1 overflow-y-auto bg-background shadow-inner p-2 max-h-[400px]">
                     {produtosFiltrados.length === 0 ? (
@@ -427,7 +484,7 @@ export default function ScannerPDV() {
                 )}
               </CardContent>
             </Card>
-
+ 
             <Card className="lg:col-span-7 shadow-lg border-border bg-card flex flex-col w-full overflow-hidden">
               <CardHeader className="bg-foreground/95 text-background rounded-t-xl pb-4 border-b border-border">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -436,7 +493,7 @@ export default function ScannerPDV() {
                 </div>
               </CardHeader>
               <CardContent className="p-0 flex flex-col flex-1 w-full">
-
+ 
                 <div className="flex-1 min-h-[300px] max-h-[400px] overflow-x-auto overflow-y-auto bg-muted/20 p-2 w-full">
                   {carrinho.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-60 w-full">
@@ -495,7 +552,7 @@ export default function ScannerPDV() {
                     </div>
                   )}
                 </div>
-
+ 
                 <div className="bg-muted/40 border-t border-border p-4 sm:p-6 rounded-b-xl w-full">
                   <div className="flex flex-row justify-between items-center mb-4 sm:mb-6">
                     <div className="text-muted-foreground">
@@ -507,14 +564,14 @@ export default function ScannerPDV() {
                       <p className="text-2xl sm:text-4xl font-black text-green-600 dark:text-green-400 tracking-tight">R$ {totalCarrinho.toFixed(2)}</p>
                     </div>
                   </div>
-
+ 
                   {carrinhoExcedeEstoque && (
                     <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
                       Algum item do carrinho está com quantidade acima do estoque disponível. Ajuste antes de vender ou registrar perda.
                     </div>
                   )}
-
+ 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 w-full">
                     <Button
                       variant="outline"
@@ -524,7 +581,7 @@ export default function ScannerPDV() {
                     >
                       <Plus className="mr-2 h-4 w-4" /> Entrada
                     </Button>
-
+ 
                     <Button
                       variant="outline"
                       className="h-12 sm:h-14 border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-500/10 w-full"
@@ -533,7 +590,7 @@ export default function ScannerPDV() {
                     >
                       <AlertTriangle className="mr-2 h-4 w-4" /> Perda
                     </Button>
-
+ 
                     <Button
                       className="h-12 sm:h-14 bg-green-600 hover:bg-green-700 text-white shadow-lg w-full"
                       onClick={() => handleFinalizar('SAIDA')}
@@ -542,18 +599,18 @@ export default function ScannerPDV() {
                       <CheckCircle className="mr-2 h-4 w-4" /> Vender
                     </Button>
                   </div>
-
+ 
                   <Button variant="ghost" className="w-full text-muted-foreground hover:bg-muted hover:text-foreground h-10 sm:h-12" onClick={limparCarrinho} disabled={carrinho.length === 0}>
                     <XCircle className="w-4 h-4 mr-2" /> Cancelar Compra
                   </Button>
-
+ 
                 </div>
-
+ 
               </CardContent>
             </Card>
           </div>
         </TabsContent>
-
+ 
         <TabsContent value="historico">
           <Card className="overflow-hidden w-full bg-card border-border">
             <CardHeader className="border-b border-border">
@@ -595,13 +652,13 @@ export default function ScannerPDV() {
                               <TableCell className={`font-bold text-right text-sm ${grp.tipo === 'QUEBRA_PERDA' ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
                                 {grp.tipo === 'QUEBRA_PERDA' ? '- ' : ''}R$ {grp.valorTotal.toFixed(2)}
                               </TableCell>
-
+ 
                               <TableCell className="text-center">
                                 <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
                                   <Button variant="outline" size="sm" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 border-amber-500/30 w-full sm:w-auto text-xs" onClick={() => handleBaixarNF(grp, 'cupom')} title="Cupom da Impressora de Caixa">
                                     <Printer className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" /> <span className="hidden sm:inline">Cupom</span>
                                   </Button>
-
+ 
                                   <Button variant="outline" size="sm" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 hover:bg-blue-500/20 border-blue-500/30 w-full sm:w-auto text-xs" onClick={() => handleBaixarNF(grp, 'danfe')} title="Nota Fiscal Formal A4">
                                     <FileText className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" /> <span className="hidden sm:inline">DANFE</span>
                                   </Button>
@@ -618,7 +675,7 @@ export default function ScannerPDV() {
             </CardContent>
           </Card>
         </TabsContent>
-
+ 
         <TabsContent value="xml">
            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="border-2 border-dashed border-border bg-muted/30 w-full">
@@ -638,15 +695,23 @@ export default function ScannerPDV() {
                     <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-green-500/10 flex items-center justify-center mb-4 sm:mb-6"><FileCode className="h-8 w-8 sm:h-10 sm:w-10 text-green-500" /></div>
                     <h3 className="text-sm sm:text-lg font-semibold text-foreground max-w-[200px] sm:max-w-full truncate px-4">{file.name}</h3>
                     <div className="flex flex-col sm:flex-row gap-3 mt-6 sm:mt-8 w-full px-4 sm:px-8">
-                      <Button variant="outline" className="flex-1 text-red-600 dark:text-red-400 w-full" onClick={() => { setFile(null); setResultados([]); }}><Trash2 className="h-4 w-4 mr-2" /> Remover</Button>
-                      <Button className="flex-1 w-full" onClick={handleProcessarXML} disabled={loadingXml}>{loadingXml ? "A processar..." : "Ler NF-e"}</Button>
+                      <Button variant="outline" className="flex-1 text-red-600 dark:text-red-400 w-full" onClick={limparImportacaoXml} disabled={loadingXml}>
+                        <Trash2 className="h-4 w-4 mr-2" /> Remover
+                      </Button>
+                      <Button className="flex-1 w-full" onClick={handleProcessarXML} disabled={loadingXml || !!relatorioImportacao}>
+                        {loadingXml ? "A processar e salvar..." : relatorioImportacao ? "Já importado" : "Ler e Salvar no Estoque"}
+                      </Button>
                     </div>
+                    <p className="text-[11px] sm:text-xs text-muted-foreground mt-3 text-center px-4">
+                      Ao confirmar, o sistema já extrai e grava os produtos/lotes direto no seu estoque — não há uma etapa
+                      de conferência antes de salvar.
+                    </p>
                   </div>
                 )}
                 <input type="file" ref={fileInputRef} className="hidden" accept=".xml, text/xml, application/xml" onChange={handleFileInput} />
               </CardContent>
             </Card>
-
+ 
             <Card className="bg-amber-500/5 border-amber-500/20">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-lg"><Info className="h-5 w-5" /> Dica para o Gestor</CardTitle>
@@ -658,49 +723,30 @@ export default function ScannerPDV() {
               </CardContent>
             </Card>
           </div>
-
-          {resultados.length > 0 && (
+ 
+          {relatorioImportacao && (
             <Card className="mt-6 border-green-500/20 shadow-md w-full overflow-hidden bg-card">
               <CardHeader className="bg-green-500/5 border-b border-green-500/20">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
-                    <CardTitle className="text-green-700 dark:text-green-400 flex items-center gap-2 text-lg sm:text-xl"><CheckCircle className="h-5 w-5" /> Extração Perfeita</CardTitle>
-                    <CardDescription className="text-xs sm:text-sm">Encontrados {resultados.length} produtos estruturados.</CardDescription>
+                    <CardTitle className="text-green-700 dark:text-green-400 flex items-center gap-2 text-lg sm:text-xl"><CheckCircle className="h-5 w-5" /> Importado com Sucesso</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">Relatório devolvido pelo servidor após salvar no estoque.</CardDescription>
                   </div>
-                  <Button onClick={confirmarImportacao} className="bg-green-600 hover:bg-green-700 text-white shadow-sm w-full sm:w-auto">Salvar no Estoque</Button>
+                  <Button variant="outline" onClick={limparImportacaoXml} className="w-full sm:w-auto">Importar outro arquivo</Button>
                 </div>
               </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto w-full">
-                  <div className="min-w-[600px] p-4 sm:p-0">
-                    <Table className="w-full">
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="pl-4 sm:pl-6">Código de Barras</TableHead>
-                          <TableHead>Produto Exato</TableHead>
-                          <TableHead className="text-right">Custo</TableHead>
-                          <TableHead className="text-right pr-4 sm:pr-6">Qtd</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {resultados.map((prod, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="font-mono text-muted-foreground pl-4 sm:pl-6 text-xs">{prod.codigoBarras}</TableCell>
-                            <TableCell className="font-medium text-xs sm:text-sm">{prod.nome}</TableCell>
-                            <TableCell className="text-right text-muted-foreground text-xs sm:text-sm">R$ {prod.precoCusto.toFixed(2)}</TableCell>
-                            <TableCell className="text-right pr-4 sm:pr-6"><span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-blue-500/10 text-blue-700 dark:text-blue-400">+{prod.quantidade}</span></TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="space-y-1.5">
+                  {relatorioImportacao.split('\n').filter((l) => l.trim() !== '').map((linha, i) => (
+                    <p key={i} className="text-sm leading-relaxed text-foreground">{linha}</p>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           )}
         </TabsContent>
       </Tabs>
-
+ 
       <Dialog open={modalPerdaAberto} onOpenChange={setModalPerdaAberto}>
         <DialogContent className="sm:max-w-md w-[95%] mx-auto rounded-xl">
           <DialogHeader>
@@ -727,3 +773,7 @@ export default function ScannerPDV() {
     </div>
   );
 }
+ 
+
+
+

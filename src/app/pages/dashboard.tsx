@@ -1,3 +1,6 @@
+
+
+
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { TrendingUp, Package, AlertCircle, DollarSign, Lock, CheckCircle, PieChart, AlertTriangle, Snowflake, Flame, Loader2, Settings2, Check, X } from 'lucide-react';
@@ -8,14 +11,16 @@ import { dashboardService } from '../services/dashboard.service';
 import { produtoService, Produto } from '../services/produto.service';
 import { toast } from 'sonner';
 import api from '../services/api';
-
+ 
 interface DashboardStats {
+  // 🔒 vêm de /estatisticas (ADMIN/SUPER_ADMIN) — podem ficar bloqueados
   capitalImobilizado: number;
   giroEstoque: number;
+  // 🟢 vêm de /dashboard/resumo (sem restrição) — nunca deveriam ficar bloqueados
   totalProdutos: number;
   produtosCriticos: number;
 }
-
+ 
 interface ItemEstoqueMorto {
   produtoId: number;
   nomeProduto: string;
@@ -29,27 +34,56 @@ interface ItemEstoqueMorto {
   precoVendaQueima: number;
   margemAjustada: boolean;
 }
-
+ 
+/**
+ * Extrai uma mensagem legível dos formatos de erro que a API pode devolver:
+ * - { erro: string, detalhes?: {...} } (formato padrão do TratadorDeErros global)
+ * - { message: string } (formato manual usado em alguns endpoints)
+ * - string pura / fallback para error.message (erro de rede, timeout, CORS, etc.)
+ * Mesmo padrão usado em importacao.tsx, fornecedores.tsx e scanner.tsx.
+ */
+function extrairMensagemErro(error: any, fallback: string): string {
+  const data = error?.response?.data;
+ 
+  if (typeof data === 'string' && data.trim()) return data;
+ 
+  if (data && typeof data === 'object') {
+    if (data.detalhes && typeof data.detalhes === 'object') {
+      const mensagens = Object.values(data.detalhes).filter(Boolean);
+      if (mensagens.length) return mensagens.join(' | ');
+    }
+    if (typeof data.erro === 'string' && data.erro) return data.erro;
+    if (typeof data.message === 'string' && data.message) return data.message;
+  }
+ 
+  if (error?.message === 'Network Error') {
+    return 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.';
+  }
+ 
+  return error?.message || fallback;
+}
+ 
 const formatBRL = (valor: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
-
+ 
 const CORES_ABC: Record<string, string> = { A: '#10b981', B: '#f59e0b', C: '#ef4444' };
 const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
+ 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     capitalImobilizado: 0, giroEstoque: 0, totalProdutos: 0, produtosCriticos: 0
   });
-
+ 
   const [produtosBaixoEstoque, setProdutosBaixoEstoque] = useState<Produto[]>([]);
   const [todosProdutos, setTodosProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [acessoFinanceiroNegado, setAcessoFinanceiroNegado] = useState(false);
-
+ 
   // Estados para os dados REAIS do gráfico de perdas
   const [prejuizoTotal, setPrejuizoTotal] = useState(0);
   const [dadosGraficoPerdas, setDadosGraficoPerdas] = useState<{ mes: string; valor: number }[]>([]);
-
+ 
   // Estados do painel "Dinheiro Congelado" (estoque morto)
   const [estoqueMorto, setEstoqueMorto] = useState<ItemEstoqueMorto[]>([]);
   const [totalCongelado, setTotalCongelado] = useState(0);
@@ -59,40 +93,57 @@ export default function Dashboard() {
   const [editandoDias, setEditandoDias] = useState(false);
   const [valorEditandoDias, setValorEditandoDias] = useState('90');
   const [salvandoDias, setSalvandoDias] = useState(false);
-
+ 
   useEffect(() => {
     carregarDados();
   }, []);
-
+ 
   const carregarDados = async () => {
     setLoading(true);
-
+ 
+    
     try {
-      const resumo = await dashboardService.obterResumo();
-      setStats(resumo);
+      const resumoGeral = await dashboardService.obterResumoGeral();
+      setStats((prev) => ({
+        ...prev,
+        totalProdutos: resumoGeral.totalProdutos,
+        produtosCriticos: resumoGeral.produtosCriticos,
+      }));
+    } catch (error: any) {
+      toast.error(extrairMensagemErro(error, 'Erro ao carregar o resumo do estoque.'));
+    }
+ 
+    
+    try {
+      const financeiro = await dashboardService.obterEstatisticasFinanceiras();
+      setStats((prev) => ({
+        ...prev,
+        capitalImobilizado: financeiro.capitalImobilizado,
+        giroEstoque: financeiro.giroEstoque,
+      }));
     } catch (error: any) {
       if (error.response && (error.response.status === 400 || error.response.status === 403)) {
         setAcessoFinanceiroNegado(true);
       } else {
-        toast.error('Erro ao carregar estatísticas financeiras.');
+        toast.error(extrairMensagemErro(error, 'Erro ao carregar estatísticas financeiras.'));
       }
     }
-
+ 
     try {
       const listaProdutos = await produtoService.listarTodos();
       setTodosProdutos(listaProdutos);
     } catch (error) {}
-
+ 
     try {
       const produtosCriticos = await produtoService.listarCriticos();
       setProdutosBaixoEstoque(produtosCriticos);
     } catch (error) {}
-
+ 
     // Prejuízo por perdas (QUEBRA_PERDA) dos últimos 3 meses.
     try {
       const resMovs = await api.get('/movimentacoes');
       const perdas = resMovs.data.filter((m: any) => m.tipo === 'QUEBRA_PERDA');
-
+ 
       // Janela identificada por ANO+mês, não só o nome do mês — senão uma perda de
       // "Janeiro" do ano passado seria somada junto com "Janeiro" deste ano assim
       // que o dashboard girasse pra um novo ano, inflando o mês errado no gráfico.
@@ -102,31 +153,31 @@ export default function Dashboard() {
         const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
         return { chave: `${d.getFullYear()}-${d.getMonth()}`, label: NOMES_MESES[d.getMonth()] };
       });
-
+ 
       const perdasPorChave: { [key: string]: number } = {};
       janela.forEach(({ chave }) => { perdasPorChave[chave] = 0; });
-
+ 
       let totalJanela = 0;
-
+ 
       perdas.forEach((p: any) => {
         if (!p.dataMovimentacao) return;
         const custo = p.produto?.precoCusto || 0;
         const valorPerdido = custo * p.quantidade;
-
+ 
         const dataPerda = new Date(p.dataMovimentacao);
         const chave = `${dataPerda.getFullYear()}-${dataPerda.getMonth()}`;
-
+ 
         if (perdasPorChave[chave] !== undefined) {
           perdasPorChave[chave] += valorPerdido;
           totalJanela += valorPerdido;
         }
       });
-
+ 
       setPrejuizoTotal(totalJanela);
       setDadosGraficoPerdas(janela.map(({ chave, label }) => ({ mes: label, valor: perdasPorChave[chave] })));
     } catch (error) {}
-
-    // Dinheiro Congelado: produtos parados há mais de 90 dias sem venda
+ 
+    // Dinheiro Congelado: produtos parados há mais de N dias sem venda
     try {
       const resEstoqueMorto = await api.get('/estoque-morto');
       setEstoqueMorto(resEstoqueMorto.data.itens ?? []);
@@ -139,17 +190,17 @@ export default function Dashboard() {
         setAcessoEstoqueMortoNegado(true);
       }
     }
-
+ 
     setLoading(false);
   };
-
+ 
   const handleSalvarDiasConsiderados = async () => {
     const novoValor = parseInt(valorEditandoDias, 10);
     if (isNaN(novoValor) || novoValor <= 0) {
       toast.error('Informe um número de dias maior que zero.');
       return;
     }
-
+ 
     try {
       setSalvandoDias(true);
       await api.put('/estoque-morto/configuracao', { dias: novoValor });
@@ -160,13 +211,13 @@ export default function Dashboard() {
       const resEstoqueMorto = await api.get('/estoque-morto');
       setEstoqueMorto(resEstoqueMorto.data.itens ?? []);
       setTotalCongelado(resEstoqueMorto.data.totalCongelado ?? 0);
-    } catch (error) {
-      toast.error('Erro ao salvar a configuração.');
+    } catch (error: any) {
+      toast.error(extrairMensagemErro(error, 'Erro ao salvar a configuração.'));
     } finally {
       setSalvandoDias(false);
     }
   };
-
+ 
   const handleGerarPlanilhaQueima = async () => {
     try {
       setGerandoPlanilhaQueima(true);
@@ -180,13 +231,13 @@ export default function Dashboard() {
       link.click();
       link.parentNode?.removeChild(link);
       toast.success('Lista de queima de estoque baixada! Já vem com o preço sugerido de -30%.');
-    } catch (error) {
-      toast.error('Erro ao gerar a lista de queima de estoque.');
+    } catch (error: any) {
+      toast.error(extrairMensagemErro(error, 'Erro ao gerar a lista de queima de estoque.'));
     } finally {
       setGerandoPlanilhaQueima(false);
     }
   };
-
+ 
   // Item mais "parado" da lista — usado só pra dar contexto na frase de
   // destaque ("...sem saída desde X"); a lista completa já vem ordenada por
   // valor, então aqui procuramos especificamente o de mais dias sem vender.
@@ -198,22 +249,20 @@ export default function Dashboard() {
       return diasAtual > diasPior ? atual : pior;
     });
   }, [estoqueMorto]);
-
-  // Curva ABC com contagem por classe além do percentual — só o "%" não dizia
-  // quantos produtos existem em cada classe, o que dificultava entender por que
-  // dois produtos pareciam "parecidos" mas caíam em classes diferentes.
+ 
+ 
   const dadosGraficoABC = useMemo(() => {
     if (todosProdutos.length === 0) return [];
     const contagem: Record<'A' | 'B' | 'C', number> = { A: 0, B: 0, C: 0 };
-
+ 
     todosProdutos.forEach((p) => {
       const letra = p.classificacaoABC as 'A' | 'B' | 'C' | undefined;
       if (letra && contagem[letra] !== undefined) contagem[letra]++;
     });
-
+ 
     const totalGeral = contagem.A + contagem.B + contagem.C;
     if (totalGeral === 0) return [];
-
+ 
     return (['A', 'B', 'C'] as const).map((letra) => ({
       categoria: `Classe ${letra}`,
       porcentagem: Math.round((contagem[letra] / totalGeral) * 100),
@@ -221,7 +270,7 @@ export default function Dashboard() {
       cor: CORES_ABC[letra],
     }));
   }, [todosProdutos]);
-
+ 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -232,14 +281,14 @@ export default function Dashboard() {
       </div>
     );
   }
-
+ 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
         <p className="text-gray-600 dark:text-gray-400">Visão geral e inteligência do seu estoque</p>
       </div>
-
+ 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="shadow-sm border-l-4 border-l-green-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -257,7 +306,7 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-
+ 
         <Card className="shadow-sm border-l-4 border-l-blue-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-bold text-gray-700 dark:text-white">Giro de Estoque</CardTitle>
@@ -274,7 +323,9 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-
+ 
+        {/* 🟢 Total de Produtos e Atenção Necessária não dependem mais de
+            acessoFinanceiroNegado — vêm de /dashboard/resumo, sem restrição. */}
         <Card className="shadow-sm border-l-4 border-l-purple-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-bold text-gray-700 dark:text-white">Total de Produtos</CardTitle>
@@ -285,7 +336,7 @@ export default function Dashboard() {
             <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">Itens cadastrados</p>
           </CardContent>
         </Card>
-
+ 
         <Card className="shadow-sm border-l-4 border-l-red-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-bold text-gray-700 dark:text-white">Atenção Necessária</CardTitle>
@@ -297,9 +348,9 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-
+ 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
+ 
         <Card className="shadow-md border-t-4 border-t-indigo-500 lg:col-span-1 dark:bg-gray-800 dark:border-gray-700">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 text-lg">
@@ -343,7 +394,7 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-
+ 
         <Card className="shadow-md border-t-4 border-t-red-500 lg:col-span-1 dark:bg-gray-800 dark:border-gray-700">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-900 dark:text-red-200 text-lg">
@@ -376,7 +427,7 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-
+ 
         <Card className="shadow-md border-t-4 border-t-orange-500 lg:col-span-1 dark:bg-gray-800 dark:border-gray-700">
           <CardHeader>
             <CardTitle className="text-orange-900 dark:text-orange-200 flex items-center gap-2 text-lg">
@@ -409,15 +460,16 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-
+ 
+     
       {!acessoEstoqueMortoNegado && (
-        <Card className="shadow-md border-t-4 border-t-cyan-600 bg-gradient-to-br from-cyan-50 to-white dark:from-gray-800 dark:to-gray-800 dark:border-gray-700">
+        <Card className="shadow-md border-t-4 border-t-cyan-500 dark:bg-gray-800 dark:border-gray-700">
           <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2 text-cyan-900 dark:text-cyan-200 text-lg">
                 <Snowflake className="h-5 w-5" /> Dinheiro Congelado
               </CardTitle>
-
+ 
               {!editandoDias ? (
                 <div className="flex items-center gap-1.5 mt-1">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">
@@ -426,7 +478,7 @@ export default function Dashboard() {
                   <button
                     onClick={() => { setValorEditandoDias(String(diasConsiderados)); setEditandoDias(true); }}
                     title="Ajustar esse critério pro ritmo do seu negócio"
-                    className="text-cyan-700/60 hover:text-cyan-800 dark:text-cyan-400/60 dark:hover:text-cyan-300 transition-colors"
+                    className="text-muted-foreground/70 hover:text-foreground dark:text-gray-400/70 dark:hover:text-gray-200 transition-colors"
                   >
                     <Settings2 className="h-3.5 w-3.5" />
                   </button>
@@ -439,7 +491,7 @@ export default function Dashboard() {
                     min={1}
                     value={valorEditandoDias}
                     onChange={(e) => setValorEditandoDias(e.target.value)}
-                    className="w-16 h-7 text-xs text-center rounded-md border border-cyan-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-1"
+                    className="w-16 h-7 text-xs text-center rounded-md border border-input dark:border-gray-600 bg-background dark:bg-gray-700 text-foreground dark:text-white px-1"
                     autoFocus
                   />
                   <span className="text-xs text-muted-foreground dark:text-gray-400">dias</span>
@@ -447,7 +499,7 @@ export default function Dashboard() {
                     onClick={handleSalvarDiasConsiderados}
                     disabled={salvandoDias}
                     title="Salvar"
-                    className="text-green-600 hover:text-green-700 disabled:opacity-50"
+                    className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:opacity-50"
                   >
                     {salvandoDias ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   </button>
@@ -455,7 +507,7 @@ export default function Dashboard() {
                     onClick={() => setEditandoDias(false)}
                     disabled={salvandoDias}
                     title="Cancelar"
-                    className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                    className="text-muted-foreground dark:text-gray-400 hover:text-foreground dark:hover:text-gray-200 disabled:opacity-50"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -466,7 +518,7 @@ export default function Dashboard() {
               <Button
                 onClick={handleGerarPlanilhaQueima}
                 disabled={gerandoPlanilhaQueima}
-                className="bg-cyan-700 hover:bg-cyan-800 text-white shrink-0"
+                className="bg-cyan-600 hover:bg-cyan-700 dark:bg-cyan-600 dark:hover:bg-cyan-500 text-white shrink-0"
               >
                 {gerandoPlanilhaQueima ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando...</>
@@ -484,32 +536,32 @@ export default function Dashboard() {
               </div>
             ) : (
               <>
-                <p className="text-sm text-cyan-950 dark:text-cyan-100 leading-relaxed">
-                  Você tem <span className="font-black text-2xl text-cyan-800 dark:text-cyan-300">{formatBRL(totalCongelado)}</span> parados
+                <p className="text-sm text-foreground dark:text-gray-200 leading-relaxed">
+                  Você tem <span className="font-black text-2xl text-cyan-600 dark:text-cyan-400">{formatBRL(totalCongelado)}</span> parados
                   {' '}em {estoqueMorto.length} produto{estoqueMorto.length !== 1 ? 's' : ''} que não {estoqueMorto.length !== 1 ? 'têm' : 'tem'} saída.
                   {itemMaisAntigo && (
                     <> O pior caso é <strong>{itemMaisAntigo.nomeProduto}</strong>, {itemMaisAntigo.dataUltimaVendaLabel === 'Nunca vendeu' ? 'que nunca vendeu desde que foi cadastrado' : `parado ${itemMaisAntigo.dataUltimaVendaLabel}`}.</>
                   )}
                 </p>
-
+ 
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
                   {estoqueMorto.slice(0, 6).map((item) => (
                     <div
                       key={item.produtoId}
-                      className="flex items-center justify-between text-sm bg-white/70 dark:bg-gray-700/50 border border-cyan-100 dark:border-gray-600 rounded-lg px-3 py-2"
+                      className="flex items-center justify-between text-sm bg-cyan-50 dark:bg-gray-700/50 border border-cyan-200 dark:border-gray-600 rounded-lg px-3 py-2"
                     >
                       <div className="truncate pr-2">
-                        <p className="font-semibold text-cyan-950 dark:text-cyan-100 truncate flex items-center gap-1">
+                        <p className="font-semibold text-cyan-900 dark:text-cyan-100 truncate flex items-center gap-1">
                           {item.nomeProduto}
                           {item.margemAjustada && (
                             <span title="Margem original menor que 30% — o preço de queima foi travado no custo (lucro zero) pra não vender no prejuízo">
-                              <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+                              <AlertTriangle className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
                             </span>
                           )}
                         </p>
-                        <p className="text-xs text-cyan-700/70 dark:text-gray-400">{item.dataUltimaVendaLabel} · {item.quantidadeParada} un.</p>
+                        <p className="text-xs text-cyan-700 dark:text-gray-400">{item.dataUltimaVendaLabel} · {item.quantidadeParada} un.</p>
                       </div>
-                      <span className="font-bold text-cyan-800 dark:text-cyan-300 shrink-0">{formatBRL(item.valorParado)}</span>
+                      <span className="font-bold text-cyan-600 dark:text-cyan-400 shrink-0">{formatBRL(item.valorParado)}</span>
                     </div>
                   ))}
                 </div>
@@ -532,3 +584,9 @@ export default function Dashboard() {
     </div>
   );
 }
+ 
+
+
+
+
+
