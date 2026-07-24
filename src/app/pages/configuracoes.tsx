@@ -256,24 +256,23 @@ export default function Configuracoes() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1.5 text-foreground dark:text-gray-300">CNPJ <Lock className="h-3 w-3 text-muted-foreground dark:text-gray-500" /></Label>
-                  <Input value={empresaData.cnpj} disabled className="bg-muted dark:bg-gray-900 text-muted-foreground dark:text-gray-500 dark:border-gray-700 cursor-not-allowed" />
+                  <Input value={empresaData.cnpj} disabled className="bg-muted text-muted-foreground cursor-not-allowed" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-foreground dark:text-gray-300">Razão Social</Label>
-                  <Input className="dark:bg-gray-900 dark:border-gray-700 dark:text-white" value={empresaData.razaoSocial} onChange={e => setEmpresaData({ ...empresaData, razaoSocial: e.target.value })} />
+                  <Input value={empresaData.razaoSocial} onChange={e => setEmpresaData({ ...empresaData, razaoSocial: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-foreground dark:text-gray-300">Nome Fantasia</Label>
-                  <Input className="dark:bg-gray-900 dark:border-gray-700 dark:text-white" value={empresaData.nomeFantasia} onChange={e => setEmpresaData({ ...empresaData, nomeFantasia: e.target.value })} />
+                  <Input value={empresaData.nomeFantasia} onChange={e => setEmpresaData({ ...empresaData, nomeFantasia: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-foreground dark:text-gray-300">E-mail</Label>
-                  <Input className="dark:bg-gray-900 dark:border-gray-700 dark:text-white" type="email" value={empresaData.email} onChange={e => setEmpresaData({ ...empresaData, email: e.target.value })} />
+                  <Input type="email" value={empresaData.email} onChange={e => setEmpresaData({ ...empresaData, email: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-foreground dark:text-gray-300">Celular</Label>
                   <Input
-                    className="dark:bg-gray-900 dark:border-gray-700 dark:text-white"
                     value={empresaData.celular}
                     onChange={e => setEmpresaData({ ...empresaData, celular: formatarCelular(e.target.value) })}
                     placeholder="(99) 98142-0899"
@@ -283,15 +282,15 @@ export default function Configuracoes() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-foreground dark:text-gray-300">Endereço</Label>
-                  <Input className="dark:bg-gray-900 dark:border-gray-700 dark:text-white" value={empresaData.endereco} onChange={e => setEmpresaData({ ...empresaData, endereco: e.target.value })} />
+                  <Input value={empresaData.endereco} onChange={e => setEmpresaData({ ...empresaData, endereco: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-foreground dark:text-gray-300">Cidade</Label>
-                  <Input className="dark:bg-gray-900 dark:border-gray-700 dark:text-white" value={empresaData.cidade} onChange={e => setEmpresaData({ ...empresaData, cidade: e.target.value })} />
+                  <Input value={empresaData.cidade} onChange={e => setEmpresaData({ ...empresaData, cidade: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-foreground dark:text-gray-300">Estado</Label>
-                  <Input className="dark:bg-gray-900 dark:border-gray-700 dark:text-white" value={empresaData.estado} onChange={e => setEmpresaData({ ...empresaData, estado: e.target.value.toUpperCase() })} maxLength={2} />
+                  <Input value={empresaData.estado} onChange={e => setEmpresaData({ ...empresaData, estado: e.target.value.toUpperCase() })} maxLength={2} />
                 </div>
               </div>
               <div className="flex justify-end pt-4">
@@ -321,20 +320,20 @@ export default function Configuracoes() {
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label className="text-foreground dark:text-gray-300">Nome</Label>
-                      <Input className="dark:bg-gray-900 dark:border-gray-700 dark:text-white" value={novoFuncionario.nome} onChange={e => setNovoFuncionario({ ...novoFuncionario, nome: e.target.value })} />
+                      <Input value={novoFuncionario.nome} onChange={e => setNovoFuncionario({ ...novoFuncionario, nome: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-foreground dark:text-gray-300">E-mail</Label>
-                      <Input className="dark:bg-gray-900 dark:border-gray-700 dark:text-white" type="email" value={novoFuncionario.email} onChange={e => setNovoFuncionario({ ...novoFuncionario, email: e.target.value })} />
+                      <Input type="email" value={novoFuncionario.email} onChange={e => setNovoFuncionario({ ...novoFuncionario, email: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-foreground dark:text-gray-300">Senha</Label>
-                      <Input className="dark:bg-gray-900 dark:border-gray-700 dark:text-white" type="password" value={novoFuncionario.senha} onChange={e => setNovoFuncionario({ ...novoFuncionario, senha: e.target.value })} />
+                      <Input type="password" value={novoFuncionario.senha} onChange={e => setNovoFuncionario({ ...novoFuncionario, senha: e.target.value })} />
                       <p className="text-xs text-muted-foreground dark:text-gray-400">Mínimo de 6 caracteres.</p>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-foreground dark:text-gray-300">Função</Label>
-                      <select className="w-full p-2 border border-input dark:border-gray-700 rounded-md bg-background dark:bg-gray-900 text-foreground dark:text-white" value={novoFuncionario.perfil} onChange={e => setNovoFuncionario({ ...novoFuncionario, perfil: e.target.value })}>
+                      <select className="w-full p-2 border border-input rounded-md bg-background text-foreground" value={novoFuncionario.perfil} onChange={e => setNovoFuncionario({ ...novoFuncionario, perfil: e.target.value })}>
                         <option value="CAIXA">Caixa</option>
                         <option value="ESTOQUISTA">Estoquista</option>
                         <option value="ADMIN">Gerente (Admin)</option>
@@ -363,15 +362,15 @@ export default function Configuracoes() {
                       )}
                       <div className="space-y-2">
                         <Label className="text-foreground dark:text-gray-300">Nome</Label>
-                        <Input className="dark:bg-gray-900 dark:border-gray-700 dark:text-white" value={funcionarioEditando.nome} onChange={(e) => setFuncionarioEditando({ ...funcionarioEditando, nome: e.target.value })} />
+                        <Input value={funcionarioEditando.nome} onChange={(e) => setFuncionarioEditando({ ...funcionarioEditando, nome: e.target.value })} />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-foreground dark:text-gray-300">E-mail</Label>
-                        <Input className="dark:bg-gray-900 dark:border-gray-700 dark:text-white" type="email" value={funcionarioEditando.email} onChange={(e) => setFuncionarioEditando({ ...funcionarioEditando, email: e.target.value })} />
+                        <Input type="email" value={funcionarioEditando.email} onChange={(e) => setFuncionarioEditando({ ...funcionarioEditando, email: e.target.value })} />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-foreground dark:text-gray-300">Nova Função (Perfil)</Label>
-                        <select className="w-full p-2 border border-input dark:border-gray-700 rounded-md bg-background dark:bg-gray-900 text-foreground dark:text-white" value={funcionarioEditando.perfil} onChange={(e) => setFuncionarioEditando({ ...funcionarioEditando, perfil: e.target.value })}>
+                        <select className="w-full p-2 border border-input rounded-md bg-background text-foreground" value={funcionarioEditando.perfil} onChange={(e) => setFuncionarioEditando({ ...funcionarioEditando, perfil: e.target.value })}>
                           <option value="CAIXA">Caixa</option>
                           <option value="ESTOQUISTA">Estoquista</option>
                           <option value="ADMIN">Gerente (Admin)</option>
