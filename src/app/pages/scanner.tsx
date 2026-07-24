@@ -1,5 +1,3 @@
-
-
 import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -446,11 +444,12 @@ export default function ScannerPDV() {
                         return (
                           <div
                             key={p.id}
-                            onClick={() => !semEstoque && adicionarAoCarrinho(p)}
-                            className={`p-3 mb-2 border rounded-lg flex flex-col sm:flex-row justify-between sm:items-center transition-colors gap-2 ${
+                    
+                            onClick={() => adicionarAoCarrinho(p)}
+                            className={`p-3 mb-2 border rounded-lg flex flex-col sm:flex-row justify-between sm:items-center transition-colors gap-2 cursor-pointer ${
                               semEstoque
-                                ? 'border-border/50 opacity-50 cursor-not-allowed'
-                                : 'border-border hover:bg-blue-500/5 hover:border-blue-500/30 cursor-pointer'
+                                ? 'border-amber-300 dark:border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-400'
+                                : 'border-border hover:bg-blue-500/5 hover:border-blue-500/30'
                             }`}
                           >
                             <div>
@@ -459,8 +458,8 @@ export default function ScannerPDV() {
                             </div>
                             <div className="text-left sm:text-right">
                               <p className="text-sm font-bold text-green-600 dark:text-green-400">R$ {(p.precoVenda || p.precoCusto || 0).toFixed(2)}</p>
-                              <p className={`text-xs ${semEstoque ? 'text-red-500 font-semibold' : 'text-muted-foreground'}`}>
-                                {semEstoque ? 'Sem estoque' : `Estoque: ${p.quantidade}`}
+                              <p className={`text-xs ${semEstoque ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-muted-foreground'}`}>
+                                {semEstoque ? 'Sem estoque · toque para repor (Entrada)' : `Estoque: ${p.quantidade}`}
                               </p>
                             </div>
                           </div>
@@ -773,7 +772,3 @@ export default function ScannerPDV() {
     </div>
   );
 }
- 
-
-
-
