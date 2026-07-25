@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { format, parseISO, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { fiadoService, ContaReceber } from '../services/fiado.service';
-import { pixService } from '../services/pix.Service';
+import { pixService } from '../services/pix.service';
 import { PixCobrancaDialog } from '../components/PixCobrancaDialog';
 
 // Formata uma data com segurança: se vier vazia/nula ou inválida do backend,
