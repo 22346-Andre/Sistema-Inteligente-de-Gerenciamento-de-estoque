@@ -23,6 +23,7 @@ import {
 import { Plus, Search, Edit, Trash2, AlertCircle, PackageSearch, Boxes, TriangleAlert, Wallet } from 'lucide-react';
 import { produtoService, Produto, ProdutoDTO, Imposto } from '../services/produto.service';
 import { fornecedorService, Fornecedor } from '../services/fornecedor.service';
+import { dashboardService } from '../services/dashboard.service';
 import { toast } from 'sonner';
 import api from '../services/api';
 
@@ -71,6 +72,35 @@ export default function Produtos() {
 
   const [novoProduto, setNovoProduto] = useState<any>(estadoInicialProduto);
 
+  // 🟢 NOVO: paginação — antes carregarDados() trazia o catálogo INTEIRO numa
+  // única chamada (listarTodos), o que ficava pesado com milhares de produtos.
+  const TAMANHO_PAGINA = 25;
+  const [pagina, setPagina] = useState(0);
+  const [totalPaginas, setTotalPaginas] = useState(0);
+  const [totalElementos, setTotalElementos] = useState(0);
+  const [carregandoProdutos, setCarregandoProdutos] = useState(false);
+  const [buscaDebounced, setBuscaDebounced] = useState(busca);
+
+  // 🟢 NOVO: resumo desacoplado da página atual — vem de /dashboard/resumo (sem
+  // restrição de perfil), então continua correto independente de estar vendo a
+  // página 1 ou a página 8 da tabela.
+  const [resumoGeral, setResumoGeral] = useState({ totalProdutos: 0, produtosCriticos: 0, valorEmEstoque: 0 });
+
+  // 🟢 NOVO: badges de Curva ABC por produto — vem de /estatisticas/curva-abc
+  // (ADMIN/SUPER_ADMIN). Se o usuário não tiver permissão, falha silenciosamente
+  // e a tabela simplesmente não mostra os badges, sem travar a tela.
+  const [classificacaoAbcPorProduto, setClassificacaoAbcPorProduto] = useState<Record<number, string>>({});
+
+  // Debounce da busca: espera 400ms sem digitar antes de consultar o backend,
+  // pra não disparar uma requisição a cada tecla.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setBuscaDebounced(busca);
+      setPagina(0);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [busca]);
+
   useEffect(() => {
     const queryVoz = searchParams.get('q');
     if (queryVoz !== null) {
@@ -79,23 +109,64 @@ export default function Produtos() {
   }, [searchParams]);
 
   useEffect(() => {
-    carregarDados();
+    carregarProdutosPagina();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagina, buscaDebounced]);
+
+  useEffect(() => {
+    carregarDadosAuxiliares();
   }, []);
 
-  const carregarDados = async () => {
+  const carregarProdutosPagina = async () => {
     try {
-      setLoading(true);
-      const [produtosData, fornecedoresData] = await Promise.all([
-        produtoService.listarTodos(),
-        fornecedorService.listarTodos()
-      ]);
-      setProdutos(produtosData);
-      setFornecedores(fornecedoresData);
+      setCarregandoProdutos(true);
+      const resultado = await produtoService.listarPaginado(pagina, TAMANHO_PAGINA, buscaDebounced);
+      setProdutos(resultado.content);
+      setTotalPaginas(resultado.totalPages);
+      setTotalElementos(resultado.totalElements);
     } catch (error) {
       toast.error('Erro ao carregar produtos. Verifique se o servidor está rodando.');
     } finally {
+      setCarregandoProdutos(false);
       setLoading(false);
     }
+  };
+
+  // Fornecedores (pro formulário) + resumo geral (cards do topo) + badges de ABC
+  // — tudo independente da paginação da tabela, carregado uma vez só.
+  const carregarDadosAuxiliares = async () => {
+    try {
+      const fornecedoresData = await fornecedorService.listarTodos();
+      setFornecedores(fornecedoresData);
+    } catch (error) {
+      toast.error('Erro ao carregar fornecedores.');
+    }
+
+    try {
+      const resumo = await dashboardService.obterResumoGeral();
+      setResumoGeral({
+        totalProdutos: resumo.totalProdutos,
+        produtosCriticos: resumo.produtosCriticos,
+        valorEmEstoque: resumo.valorEmEstoque,
+      });
+    } catch (error) {
+      // silencioso — cards do topo simplesmente não populam, tabela continua ok
+    }
+
+    try {
+      const curvaAbc = await dashboardService.obterCurvaABC('faturamento', 90);
+      const mapa: Record<number, string> = {};
+      curvaAbc.forEach((item) => { mapa[item.produtoId] = item.classe; });
+      setClassificacaoAbcPorProduto(mapa);
+    } catch (error) {
+      // silencioso — perfil CAIXA não tem acesso, tabela só não mostra os badges
+    }
+  };
+
+  // Recarrega tudo que pode ter mudado depois de criar/editar/excluir um produto.
+  const recarregarTudo = () => {
+    carregarProdutosPagina();
+    carregarDadosAuxiliares();
   };
 
   const adicionarLinhaImpostoNovo = () => {
@@ -138,9 +209,10 @@ export default function Produtos() {
       toast.success('Produto adicionado com sucesso!');
       setDialogOpen(false);
       setNovoProduto({ ...estadoInicialProduto, fornecedorId: fornecedores.length > 0 ? fornecedores[0].id : 0 });
-      carregarDados();
+      setPagina(0);
+      recarregarTudo();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Erro ao adicionar produto');
+      toast.error(error.response?.data?.erro || error.response?.data?.message || 'Erro ao adicionar produto');
     }
   };
 
@@ -148,26 +220,22 @@ export default function Produtos() {
     if (!window.confirm("Tem certeza que deseja excluir este produto?")) return;
     try {
       await produtoService.deletar(id);
-      setProdutos(produtos.filter(p => p.id !== id));
       toast.success('Produto excluído com sucesso!');
-    } catch (error) {
-      toast.error('Erro ao excluir produto');
+      // Se essa era a última linha da página (e não a primeira página), volta
+      // uma página em vez de mostrar uma tabela vazia.
+      if (produtos.length === 1 && pagina > 0) {
+        setPagina((p) => p - 1);
+      } else {
+        recarregarTudo();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.erro || 'Erro ao excluir produto. Verifique se não há movimentações vinculadas.');
     }
   };
 
-  const produtosFiltrados = produtos.filter((produto) =>
-    produto.nome?.toLowerCase().includes(busca.toLowerCase()) ||
-    produto.codigoBarras?.includes(busca)
-  );
-
-  // Resumo rápido no topo da página — pra bater o olho sem contar linha por
-  // linha na tabela.
-  const resumo = useMemo(() => {
-    const totalProdutos = produtos.length;
-    const estoqueBaixoCount = produtos.filter(p => p.quantidade < getEstoqueMinimo(p)).length;
-    const valorTotalEstoque = produtos.reduce((acc, p) => acc + (p.quantidade || 0) * ((p as any).precoCusto || 0), 0);
-    return { totalProdutos, estoqueBaixoCount, valorTotalEstoque };
-  }, [produtos]);
+  // 🟢 CORRIGIDO: busca agora é feita no backend (via buscaDebounced em
+  // carregarProdutosPagina), não filtrando um array já carregado inteiro em
+  // memória — "produtos" já vem só com os itens da página atual.
 
   // Blindagem contra números negativos
   const handleNumberInput = (e: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<any>>, field: string) => {
@@ -323,16 +391,16 @@ export default function Produtos() {
           <CardContent className="pt-6 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-primary/10"><Boxes className="h-5 w-5 text-primary" /></div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{resumo.totalProdutos}</p>
+              <p className="text-2xl font-bold text-foreground">{resumoGeral.totalProdutos}</p>
               <p className="text-xs text-muted-foreground">Produtos cadastrados</p>
             </div>
           </CardContent>
         </Card>
-        <Card className={`bg-card border-border shadow-sm ${resumo.estoqueBaixoCount > 0 ? 'border-destructive/30' : ''}`}>
+        <Card className={`bg-card border-border shadow-sm ${resumoGeral.produtosCriticos > 0 ? 'border-destructive/30' : ''}`}>
           <CardContent className="pt-6 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-destructive/10"><TriangleAlert className="h-5 w-5 text-destructive" /></div>
             <div>
-              <p className={`text-2xl font-bold ${resumo.estoqueBaixoCount > 0 ? 'text-destructive' : 'text-foreground'}`}>{resumo.estoqueBaixoCount}</p>
+              <p className={`text-2xl font-bold ${resumoGeral.produtosCriticos > 0 ? 'text-destructive' : 'text-foreground'}`}>{resumoGeral.produtosCriticos}</p>
               <p className="text-xs text-muted-foreground">Com estoque abaixo do mínimo</p>
             </div>
           </CardContent>
@@ -341,7 +409,7 @@ export default function Produtos() {
           <CardContent className="pt-6 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-green-500/10"><Wallet className="h-5 w-5 text-green-600" /></div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{formatBRL(resumo.valorTotalEstoque)}</p>
+              <p className="text-2xl font-bold text-foreground">{formatBRL(resumoGeral.valorEmEstoque)}</p>
               <p className="text-xs text-muted-foreground">Valor total em estoque (custo)</p>
             </div>
           </CardContent>
@@ -370,7 +438,7 @@ export default function Produtos() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {produtosFiltrados.map((produto) => {
+                {produtos.map((produto) => {
                   const estoqueMinimo = getEstoqueMinimo(produto);
                   const estoqueBaixo = (produto.quantidade || 0) < estoqueMinimo;
                   return (
@@ -387,12 +455,12 @@ export default function Produtos() {
                       <TableCell className="text-muted-foreground">{produto.categoria || '-'}</TableCell>
 
                       <TableCell className="text-center">
-                        {produto.classificacaoABC && BADGE_ABC[produto.classificacaoABC] ? (
-                          <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${BADGE_ABC[produto.classificacaoABC]}`}>
-                            Classe {produto.classificacaoABC}
+                        {classificacaoAbcPorProduto[produto.id] && BADGE_ABC[classificacaoAbcPorProduto[produto.id]] ? (
+                          <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${BADGE_ABC[classificacaoAbcPorProduto[produto.id]]}`}>
+                            Classe {classificacaoAbcPorProduto[produto.id]}
                           </span>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground italic">Em análise</span>
+                          <span className="text-[10px] text-muted-foreground italic">Sem venda no período</span>
                         )}
                       </TableCell>
 
@@ -420,10 +488,42 @@ export default function Produtos() {
               </TableBody>
             </Table>
           </div>
-          {produtosFiltrados.length === 0 && !loading && (
+          {carregandoProdutos && (
+            <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+              Carregando produtos...
+            </div>
+          )}
+          {produtos.length === 0 && !loading && !carregandoProdutos && (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <PackageSearch className="h-10 w-10 mb-2 opacity-50" />
               <p>Nenhum produto encontrado.</p>
+            </div>
+          )}
+
+          {/*  controles de paginação */}
+          {totalPaginas > 1 && !carregandoProdutos && (
+            <div className="flex items-center justify-between px-2 py-4 border-t border-border">
+              <p className="text-xs text-muted-foreground">
+                Página {pagina + 1} de {totalPaginas} · {totalElementos} produto{totalElementos !== 1 ? 's' : ''} no total
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPagina((p) => Math.max(0, p - 1))}
+                  disabled={pagina === 0}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPagina((p) => Math.min(totalPaginas - 1, p + 1))}
+                  disabled={pagina >= totalPaginas - 1}
+                >
+                  Próxima
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

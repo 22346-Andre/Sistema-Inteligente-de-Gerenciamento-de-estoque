@@ -5,11 +5,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
-import { MessageCircle, CheckCircle, Clock, Search, PlusCircle, AlertCircle, CalendarClock, Pencil, Wallet } from 'lucide-react';
+import { MessageCircle, CheckCircle, Clock, Search, PlusCircle, AlertCircle, CalendarClock, Pencil, Wallet, QrCode } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { fiadoService, ContaReceber } from '../services/fiado.service';
+import { pixService } from '../services/pix.service';
+import { PixCobrancaDialog } from '../components/PixCobrancaDialog';
 
 // Formata uma data com segurança: se vier vazia/nula ou inválida do backend,
 // mostra um traço em vez de quebrar a tela inteira com uma exceção.
@@ -26,6 +28,13 @@ export default function ContasReceber() {
   const [loading, setLoading] = useState(true);
   const [termoBusca, setTermoBusca] = useState('');
   const [salvando, setSalvando] = useState(false);
+
+ 
+  const [modalPixAberto, setModalPixAberto] = useState(false);
+  const [pixCarregando, setPixCarregando] = useState(false);
+  const [pixCopiaECola, setPixCopiaECola] = useState<string | null>(null);
+  const [pixErro, setPixErro] = useState<string | null>(null);
+  const [pixValor, setPixValor] = useState(0);
 
   // Estados do Modal de Nova Conta
   const [modalAberto, setModalAberto] = useState(false);
@@ -158,6 +167,23 @@ export default function ContasReceber() {
     }
   };
 
+  
+  const handleCobrarPix = async (contaId: number, valor: number) => {
+    setPixValor(valor);
+    setPixCopiaECola(null);
+    setPixErro(null);
+    setModalPixAberto(true);
+    setPixCarregando(true);
+    try {
+      const copiaECola = await pixService.gerarCobrancaFiado(contaId);
+      setPixCopiaECola(copiaECola);
+    } catch (error: any) {
+      setPixErro(error?.response?.data?.erro || 'Erro ao gerar a cobrança PIX. Verifique se a chave PIX está configurada em Configurações > Empresa.');
+    } finally {
+      setPixCarregando(false);
+    }
+  };
+
   const handleMarcarPago = async (contaId: number) => {
     try {
       await fiadoService.marcarComoPago(contaId);
@@ -257,6 +283,9 @@ export default function ContasReceber() {
                         <div className="space-y-2">
                           <Button onClick={() => handleCobrarWhatsApp(conta.id)} className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white">
                             <MessageCircle className="w-4 h-4 mr-2" /> Cobrar no WhatsApp
+                          </Button>
+                          <Button onClick={() => handleCobrarPix(conta.id, conta.valor)} variant="outline" className="w-full border-cyan-500/30 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-500/10">
+                            <QrCode className="w-4 h-4 mr-2" /> Gerar cobrança PIX
                           </Button>
                           <div className="grid grid-cols-2 gap-2">
                             <Button variant="outline" onClick={() => handleAdiarCobranca(conta.id, 5)} className="text-muted-foreground text-xs">
@@ -412,6 +441,16 @@ export default function ContasReceber() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 🟢 NOVO */}
+      <PixCobrancaDialog
+        open={modalPixAberto}
+        onOpenChange={setModalPixAberto}
+        valor={pixValor}
+        carregando={pixCarregando}
+        copiaECola={pixCopiaECola}
+        erro={pixErro}
+      />
     </div>
   );
 }

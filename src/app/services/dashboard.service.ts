@@ -28,4 +28,17 @@ export const dashboardService = {
     const response = await api.get('/dashboard/grafico');
     return response.data as { data: string; entradas: number; saidas: number }[];
   },
+
+  
+  async obterCurvaABC(criterio: 'faturamento' | 'lucratividade' | 'giro' = 'faturamento', dias: number = 90) {
+    const response = await api.get('/estatisticas/curva-abc', { params: { criterio, dias } });
+    return response.data as {
+      produtoId: number;
+      nomeProduto: string;
+      quantidade: number;
+      valorTotal: number;
+      percentualAcumulado: number;
+      classe: 'A' | 'B' | 'C';
+    }[];
+  },
 };

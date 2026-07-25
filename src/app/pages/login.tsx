@@ -24,8 +24,10 @@ export default function Login() {
       await login(email, senha);
       toast.success('Login realizado com sucesso!');
       navigate('/dashboard');
-    } catch (error) {
-      toast.error('Erro ao fazer login. Tente novamente.');
+    } catch (error: any) {
+      
+      const mensagem = error?.response?.data?.erro || error?.response?.data?.message || 'Erro ao fazer login. Verifique suas credenciais.';
+      toast.error(mensagem);
     }
   };
 
@@ -82,7 +84,12 @@ export default function Login() {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="senha" className="text-gray-300">Senha</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="senha" className="text-gray-300">Senha</Label>
+                <Link to="/esqueci-senha" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                  Esqueci minha senha
+                </Link>
+              </div>
               <Input
                 id="senha"
                 type="password"
@@ -113,7 +120,7 @@ export default function Login() {
 
             <div className="flex justify-center pb-2">
               <GoogleLogin
-                // 🚨 Agora chamamos a função real que manda o token pro Java!
+                
                 onSuccess={async (credentialResponse) => {
                   if (credentialResponse.credential) {
                     try {

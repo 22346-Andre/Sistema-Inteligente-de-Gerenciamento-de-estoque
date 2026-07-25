@@ -2,6 +2,8 @@ import { createBrowserRouter, Navigate } from 'react-router';
 import { DashboardLayout } from './layouts/dashboard-layout';
 import Login from './pages/login';
 import Cadastro from './pages/cadastro';
+import EsqueciSenha from './pages/EsqueciSenha';
+import RedefinirSenha from './pages/RedefinirSenha';
 import Dashboard from './pages/dashboard';
 import Produtos from './pages/produtos';
 import ProdutoDetalhes from './pages/produto-detalhes';
@@ -29,6 +31,14 @@ export const router = createBrowserRouter([
   {
     path: '/cadastro',
     element: <Cadastro />
+  },
+  {
+    path: '/esqueci-senha',
+    element: <EsqueciSenha />
+  },
+  {
+    path: '/redefinir-senha',
+    element: <RedefinirSenha />
   },
   
   // ==========================================

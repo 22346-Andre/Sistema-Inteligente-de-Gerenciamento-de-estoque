@@ -251,25 +251,39 @@ export default function Dashboard() {
   }, [estoqueMorto]);
  
  
+ 
+  const [criterioABC, setCriterioABC] = useState<'faturamento' | 'lucratividade' | 'giro'>('faturamento');
+  const [curvaAbcItens, setCurvaAbcItens] = useState<Awaited<ReturnType<typeof dashboardService.obterCurvaABC>>>([]);
+  const [carregandoABC, setCarregandoABC] = useState(false);
+
+  useEffect(() => {
+    if (acessoFinanceiroNegado || loading) return;
+    setCarregandoABC(true);
+    dashboardService.obterCurvaABC(criterioABC, 90)
+      .then(setCurvaAbcItens)
+      .catch(() => setCurvaAbcItens([]))
+      .finally(() => setCarregandoABC(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [criterioABC, acessoFinanceiroNegado, loading]);
+
   const dadosGraficoABC = useMemo(() => {
-    if (todosProdutos.length === 0) return [];
+    if (curvaAbcItens.length === 0) return [];
     const contagem: Record<'A' | 'B' | 'C', number> = { A: 0, B: 0, C: 0 };
- 
-    todosProdutos.forEach((p) => {
-      const letra = p.classificacaoABC as 'A' | 'B' | 'C' | undefined;
-      if (letra && contagem[letra] !== undefined) contagem[letra]++;
+
+    curvaAbcItens.forEach((item) => {
+      if (contagem[item.classe] !== undefined) contagem[item.classe]++;
     });
- 
+
     const totalGeral = contagem.A + contagem.B + contagem.C;
     if (totalGeral === 0) return [];
- 
+
     return (['A', 'B', 'C'] as const).map((letra) => ({
       categoria: `Classe ${letra}`,
       porcentagem: Math.round((contagem[letra] / totalGeral) * 100),
       produtos: contagem[letra],
       cor: CORES_ABC[letra],
     }));
-  }, [todosProdutos]);
+  }, [curvaAbcItens]);
  
   if (loading) {
     return (
@@ -353,13 +367,30 @@ export default function Dashboard() {
  
         <Card className="shadow-md border-t-4 border-t-indigo-500 lg:col-span-1 dark:bg-gray-800 dark:border-gray-700">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 text-lg">
-              <PieChart className="h-5 w-5" /> Curva ABC
-            </CardTitle>
-            <p className="text-xs text-muted-foreground dark:text-gray-400">Produtos agrupados por valor parado em estoque</p>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 text-lg">
+                <PieChart className="h-5 w-5" /> Curva ABC
+              </CardTitle>
+              {/* 🟢 NOVO: Curva ABC multidimensional — o lojista escolhe o critério */}
+              <select
+                value={criterioABC}
+                onChange={(e) => setCriterioABC(e.target.value as typeof criterioABC)}
+                className="text-xs rounded-md border border-input bg-background text-foreground px-2 py-1"
+                disabled={carregandoABC}
+              >
+                <option value="faturamento">Faturamento</option>
+                <option value="lucratividade">Lucratividade</option>
+                <option value="giro">Giro (unidades)</option>
+              </select>
+            </div>
+            <p className="text-xs text-muted-foreground dark:text-gray-400">
+              Produtos agrupados por {criterioABC === 'faturamento' ? 'faturamento' : criterioABC === 'lucratividade' ? 'lucratividade' : 'volume vendido'} nos últimos 90 dias
+            </p>
           </CardHeader>
           <CardContent>
-            {dadosGraficoABC.length > 0 ? (
+            {carregandoABC ? (
+              <div className="flex items-center justify-center h-[220px] text-gray-400 bg-muted dark:bg-gray-900 rounded">Calculando...</div>
+            ) : dadosGraficoABC.length > 0 ? (
               <>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={dadosGraficoABC}>

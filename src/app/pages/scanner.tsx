@@ -5,7 +5,7 @@ import { Input } from '../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
-import { Camera, Plus, UploadCloud, FileCode, Trash2, Barcode, FileUp, CheckCircle, Search, Clock, FileText, ShoppingCart, AlertTriangle, Printer, Info, XCircle, PackageX } from 'lucide-react';
+import { Camera, Plus, UploadCloud, FileCode, Trash2, Barcode, FileUp, CheckCircle, Search, Clock, FileText, ShoppingCart, AlertTriangle, Printer, Info, XCircle, PackageX, QrCode, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -13,6 +13,8 @@ import { ptBR } from 'date-fns/locale';
 import api from '../services/api';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { produtoService, Produto } from '../services/produto.service';
+import { pixService } from '../services/pix.service';
+import { PixCobrancaDialog } from '../components/PixCobrancaDialog';
  
 interface ItemCarrinho {
   produto: Produto;
@@ -81,10 +83,7 @@ export default function ScannerPDV() {
   const [historicoAgrupado, setHistoricoAgrupado] = useState<any[]>([]);
   const [carregandoHistorico, setCarregandoHistorico] = useState(false);
  
-  // XML
-  // 🟢 CORRIGIDO: o backend (/importacao/xml-direto) extrai E salva em uma
-  // única chamada, devolvendo um relatório em texto — não uma lista de itens
-  // pra confirmar em duas etapas. "resultados" agora guarda esse texto.
+  
   const [file, setFile] = useState<File | null>(null);
   const [relatorioImportacao, setRelatorioImportacao] = useState<string | null>(null);
   const [loadingXml, setLoadingXml] = useState(false);
@@ -93,6 +92,16 @@ export default function ScannerPDV() {
   // ESTADOS DO MODAL DE PERDAS
   const [modalPerdaAberto, setModalPerdaAberto] = useState(false);
   const [motivoPerda, setMotivoPerda] = useState('');
+
+  
+  const [modalPixAberto, setModalPixAberto] = useState(false);
+  const [pixCarregando, setPixCarregando] = useState(false);
+  const [pixCopiaECola, setPixCopiaECola] = useState<string | null>(null);
+  const [pixErro, setPixErro] = useState<string | null>(null);
+  const [pixValor, setPixValor] = useState(0);
+  const [modalReciboAberto, setModalReciboAberto] = useState(false);
+  const [telefoneRecibo, setTelefoneRecibo] = useState('');
+  const [ultimaVendaResumo, setUltimaVendaResumo] = useState<{ itens: ItemCarrinho[]; total: number } | null>(null);
  
   useEffect(() => {
     carregarProdutos();
@@ -280,6 +289,10 @@ export default function ScannerPDV() {
       }
  
       toast.success("Operação concluída com sucesso!", { id: 'op' });
+      if (tipo === 'SAIDA') {
+       
+        setUltimaVendaResumo({ itens: carrinho, total: totalCarrinho });
+      }
       setCarrinho([]);
       carregarProdutos();
       carregarHistorico();
@@ -352,6 +365,50 @@ export default function ScannerPDV() {
   };
  
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+
+  
+  const handleGerarPix = async (valor: number) => {
+    setPixValor(valor);
+    setPixCopiaECola(null);
+    setPixErro(null);
+    setModalPixAberto(true);
+    setPixCarregando(true);
+    try {
+      const copiaECola = await pixService.gerarCobranca(valor, 'VENDA');
+      setPixCopiaECola(copiaECola);
+    } catch (error: any) {
+      setPixErro(extrairMensagemErro(error, 'Erro ao gerar a cobrança PIX. Verifique se a chave PIX está configurada em Configurações > Empresa.'));
+    } finally {
+      setPixCarregando(false);
+    }
+  };
+
+  
+  const handleEnviarRecibo = () => {
+    if (!ultimaVendaResumo) return;
+    const telefoneLimpo = telefoneRecibo.replace(/[^0-9]/g, '');
+    if (telefoneLimpo.length < 10) {
+      toast.error('Informe um telefone válido com DDD.');
+      return;
+    }
+    const numeroComPais = telefoneLimpo.startsWith('55') ? telefoneLimpo : `55${telefoneLimpo}`;
+
+    const linhasItens = ultimaVendaResumo.itens
+      .map((item) => `• ${item.quantidade}x ${item.produto.nome} — R$ ${((item.produto.precoVenda || item.produto.precoCusto || 0) * item.quantidade).toFixed(2)}`)
+      .join('\n');
+
+    const mensagem =
+      `🧾 *Recibo da sua compra*\n\n${linhasItens}\n\n` +
+      `*Total: R$ ${ultimaVendaResumo.total.toFixed(2)}*\n\n` +
+      `Obrigado pela preferência! 🙏`;
+
+    const link = `https://wa.me/${numeroComPais}?text=${encodeURIComponent(mensagem)}`;
+    window.open(link, '_blank');
+    setModalReciboAberto(false);
+    setTelefoneRecibo('');
+  };
+
+
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer.files && e.dataTransfer.files.length > 0) validarEGuardarArquivo(e.dataTransfer.files[0]); };
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files.length > 0) validarEGuardarArquivo(e.target.files[0]); };
   const validarEGuardarArquivo = (arquivo: File) => {
@@ -360,11 +417,7 @@ export default function ScannerPDV() {
     setRelatorioImportacao(null);
   };
  
-  // 🟢 CORRIGIDO: o backend não tem uma rota de "prévia" — POST /importacao/xml-direto
-  // já extrai os dados do XML da nota E salva os produtos/lotes no estoque em uma
-  // única chamada, retornando uma String de relatório (igual ao fluxo já usado em
-  // importacao.tsx). O antigo par de rotas '/importacao/processar-xml' +
-  // '/importacao/salvar' não existe no ImportacaoController e sempre resultava em 404.
+  
   const handleProcessarXML = async () => {
     if (!file) return;
     try {
@@ -608,6 +661,31 @@ export default function ScannerPDV() {
               </CardContent>
             </Card>
           </div>
+
+          {/*  ações pós-venda — some assim que um novo item entra no carrinho */}
+          {ultimaVendaResumo && carrinho.length === 0 && (
+            <Card className="mt-4 border-green-500/20 bg-green-500/5">
+              <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                  <CheckCircle className="h-5 w-5 shrink-0" />
+                  <p className="text-sm font-medium">
+                    Venda de R$ {ultimaVendaResumo.total.toFixed(2)} concluída. Quer gerar a cobrança ou mandar o recibo?
+                  </p>
+                </div>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none" onClick={() => handleGerarPix(ultimaVendaResumo.total)}>
+                    <QrCode className="h-4 w-4" /> Gerar PIX
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none" onClick={() => setModalReciboAberto(true)}>
+                    <MessageCircle className="h-4 w-4" /> Recibo WhatsApp
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setUltimaVendaResumo(null)}>
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
  
         <TabsContent value="historico">
@@ -766,6 +844,40 @@ export default function ScannerPDV() {
           <DialogFooter className="gap-2 sm:gap-0 mt-2">
             <Button variant="outline" onClick={() => setModalPerdaAberto(false)} className="w-full sm:w-auto">Cancelar</Button>
             <Button onClick={handleRegistrarPerda} className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto">Confirmar Perda</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/*  cobrança PIX e recibo por WhatsApp pós-venda */}
+      <PixCobrancaDialog
+        open={modalPixAberto}
+        onOpenChange={setModalPixAberto}
+        valor={pixValor}
+        carregando={pixCarregando}
+        copiaECola={pixCopiaECola}
+        erro={pixErro}
+      />
+
+      <Dialog open={modalReciboAberto} onOpenChange={setModalReciboAberto}>
+        <DialogContent className="sm:max-w-md w-[95%] mx-auto rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><MessageCircle className="w-5 h-5 text-green-600" /> Enviar recibo por WhatsApp</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm mt-2">
+              Informe o telefone do cliente (com DDD) pra abrir o WhatsApp já com o recibo pronto pra enviar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 sm:py-4">
+            <p className="text-xs sm:text-sm text-muted-foreground mb-2 font-medium">Telefone do cliente</p>
+            <Input
+              placeholder="(99) 99999-9999"
+              value={telefoneRecibo}
+              onChange={(e) => setTelefoneRecibo(e.target.value)}
+              className="h-10 sm:h-12 w-full text-sm"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0 mt-2">
+            <Button variant="outline" onClick={() => setModalReciboAberto(false)} className="w-full sm:w-auto">Cancelar</Button>
+            <Button onClick={handleEnviarRecibo} className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto">Abrir WhatsApp</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

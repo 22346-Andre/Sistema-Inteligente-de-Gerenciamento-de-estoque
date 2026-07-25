@@ -71,7 +71,7 @@ export default function Configuracoes() {
   // devolvido em runtime.
   const { user } = (useAuth() as unknown) as { user?: { id?: string; email?: string } };
 
-  const [empresaData, setEmpresaData] = useState({ cnpj: '', razaoSocial: '', nomeFantasia: '', email: '', celular: '', endereco: '', cidade: '', estado: '' });
+  const [empresaData, setEmpresaData] = useState({ cnpj: '', razaoSocial: '', nomeFantasia: '', email: '', celular: '', endereco: '', cidade: '', estado: '', chavePix: '' });
   const [salvandoEmpresa, setSalvandoEmpresa] = useState(false);
 
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
@@ -98,7 +98,8 @@ export default function Configuracoes() {
         cnpj: response.data.cnpj || '', razaoSocial: response.data.razaoSocial || '',
         nomeFantasia: response.data.nomeFantasia || '', email: response.data.emailContato || '',
         celular: response.data.telefone || '', endereco: response.data.endereco || '',
-        cidade: response.data.cidade || '', estado: response.data.estado || ''
+        cidade: response.data.cidade || '', estado: response.data.estado || '',
+        chavePix: response.data.chavePix || ''
       });
     } catch (error) { toast.error('Não foi possível carregar os dados da empresa.'); }
   };
@@ -117,7 +118,8 @@ export default function Configuracoes() {
     try {
       const dados = {
         razaoSocial: empresaData.razaoSocial, nomeFantasia: empresaData.nomeFantasia, emailContato: empresaData.email,
-        telefone: empresaData.celular, endereco: empresaData.endereco, cidade: empresaData.cidade, estado: empresaData.estado
+        telefone: empresaData.celular, endereco: empresaData.endereco, cidade: empresaData.cidade, estado: empresaData.estado,
+        chavePix: empresaData.chavePix
       };
       await api.put('/empresas/minha-empresa', dados);
       toast.success('Dados da empresa atualizados com sucesso!');
@@ -291,6 +293,18 @@ export default function Configuracoes() {
                 <div className="space-y-2">
                   <Label className="text-foreground dark:text-gray-300">Estado</Label>
                   <Input value={empresaData.estado} onChange={e => setEmpresaData({ ...empresaData, estado: e.target.value.toUpperCase() })} maxLength={2} />
+                </div>
+                {/* 🟢 NOVO: chave PIX — usada para gerar cobranças (Copia e Cola) no PDV e no Fiado */}
+                <div className="space-y-2 sm:col-span-2">
+                  <Label className="text-foreground dark:text-gray-300">Chave PIX</Label>
+                  <Input
+                    placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"
+                    value={empresaData.chavePix}
+                    onChange={e => setEmpresaData({ ...empresaData, chavePix: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Usada para gerar cobranças PIX no PDV e no Fiado. Deixe em branco se não quiser usar essa funcionalidade.
+                  </p>
                 </div>
               </div>
               <div className="flex justify-end pt-4">
