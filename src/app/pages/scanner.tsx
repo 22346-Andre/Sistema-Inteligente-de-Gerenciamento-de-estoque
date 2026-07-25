@@ -13,7 +13,7 @@ import { ptBR } from 'date-fns/locale';
 import api from '../services/api';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { produtoService, Produto } from '../services/produto.service';
-import { pixService } from '../services/pix.service';
+import { pixService } from '../services/pix.Service';
 import { PixCobrancaDialog } from '../components/PixCobrancaDialog';
  
 interface ItemCarrinho {
