@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router'; 
 import { useAuth } from '../contexts/auth-context';
 import { Button } from '../components/ui/button';
@@ -22,8 +22,16 @@ export default function Cadastro() {
   // Estado para guardar os erros que vêm do Java
   const [erros, setErros] = useState<Record<string, string>>({});
   
-  const { cadastrar } = useAuth();
+  const { cadastrar, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // MÁSCARA DE CNPJ
   const maskCNPJ = (value: string) => {
@@ -60,8 +68,13 @@ export default function Cadastro() {
     }
   };
 
+  
+  const [enviando, setEnviando] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); 
+    if (enviando) return; // trava contra clique duplicado
+    setEnviando(true);
     setErros({}); // Limpa os erros antigos
     
     try {
@@ -104,6 +117,8 @@ export default function Cadastro() {
         const mensagemErro = error.response?.data?.erro || error.response?.data?.message || 'Erro ao cadastrar.';
         toast.error(typeof mensagemErro === 'string' ? mensagemErro : 'Erro de validação nos dados.');
       }
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -207,9 +222,10 @@ export default function Cadastro() {
 
             <Button 
               type="submit" 
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-6 shadow-lg shadow-blue-500/30 transition-all hover:shadow-blue-500/50"
+              disabled={enviando}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-6 shadow-lg shadow-blue-500/30 transition-all hover:shadow-blue-500/50 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Cadastrar Empresa
+              {enviando ? 'Cadastrando...' : 'Cadastrar Empresa'}
             </Button>
 
             <div className="text-center text-sm text-gray-400 pt-4 border-t border-gray-800">

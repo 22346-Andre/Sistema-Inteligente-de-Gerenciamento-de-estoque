@@ -17,17 +17,24 @@ export default function Login() {
   const { login, loginComGoogle } = useAuth();
   const navigate = useNavigate();
 
+ 
+  const [entrando, setEntrando] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    if (entrando) return;
+    setEntrando(true);
+
     try {
       await login(email, senha);
       toast.success('Login realizado com sucesso!');
       navigate('/dashboard');
     } catch (error: any) {
-      
+     
       const mensagem = error?.response?.data?.erro || error?.response?.data?.message || 'Erro ao fazer login. Verifique suas credenciais.';
       toast.error(mensagem);
+    } finally {
+      setEntrando(false);
     }
   };
 
@@ -103,9 +110,10 @@ export default function Login() {
 
             <Button 
               type="submit" 
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-6 shadow-lg shadow-blue-500/30 transition-all hover:shadow-blue-500/50"
+              disabled={entrando}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-6 shadow-lg shadow-blue-500/30 transition-all hover:shadow-blue-500/50 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Entrar
+              {entrando ? 'Entrando...' : 'Entrar'}
             </Button>
 
             {/* DIVISÓRIA BONITA E BOTÃO DO GOOGLE */}

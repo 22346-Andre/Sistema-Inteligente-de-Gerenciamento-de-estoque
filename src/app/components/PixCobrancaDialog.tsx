@@ -79,7 +79,7 @@ export function PixCobrancaDialog({ open, onOpenChange, valor, carregando, copia
               {copiado ? 'Copiado!' : 'Copiar código'}
             </Button>
           )}
-        </DialogFooter>
+        </DialogFooter>vs
       </DialogContent>
     </Dialog>
   );
