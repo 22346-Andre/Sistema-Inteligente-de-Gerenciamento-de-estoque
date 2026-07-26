@@ -251,7 +251,11 @@ export default function Dashboard() {
   }, [estoqueMorto]);
  
  
- 
+  // 🟢 CORRIGIDO: antes calculava a Curva ABC no frontend a partir de
+  // Produto.classificacaoABC (removido do backend — era recalculado, errado,
+  // em toda listagem de produto). Agora busca de GET /estatisticas/curva-abc,
+  // já calculada por demanda (faturamento/lucratividade/giro), sob demanda,
+  // só quando essa tela realmente é aberta.
   const [criterioABC, setCriterioABC] = useState<'faturamento' | 'lucratividade' | 'giro'>('faturamento');
   const [curvaAbcItens, setCurvaAbcItens] = useState<Awaited<ReturnType<typeof dashboardService.obterCurvaABC>>>([]);
   const [carregandoABC, setCarregandoABC] = useState(false);

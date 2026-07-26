@@ -27,10 +27,7 @@ export interface Produto {
   impostos?: Imposto[];
 }
 
-// Isso é o que você ENVIA pra criar/editar (POST/PUT /produtos) — o
-// ProdutoDTO do backend espera "quantidadeMinima" nesse payload (nomes
-// diferentes de propósito: um é a entidade salva, o outro é o formulário de
-// entrada). Ver ProdutoService.salvar()/atualizar() no backend.
+
 export interface ProdutoDTO {
   nome: string;
   codigoBarras: string;

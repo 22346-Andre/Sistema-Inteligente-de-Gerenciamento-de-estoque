@@ -442,7 +442,7 @@ export default function ContasReceber() {
         </DialogContent>
       </Dialog>
 
-      {/* 🟢 NOVO */}
+      
       <PixCobrancaDialog
         open={modalPixAberto}
         onOpenChange={setModalPixAberto}

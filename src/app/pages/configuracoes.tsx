@@ -217,11 +217,7 @@ export default function Configuracoes() {
     }
   };
 
-  // O backend agora expõe um campo `dono` de verdade (setado uma única vez no
-  // cadastro da empresa). Usamos ele como fonte da verdade. O cálculo por
-  // menor ID fica só como fallback de segurança, pro caso raro de a tela ser
-  // carregada antes da migração que preenche esse campo pra empresas antigas
-  // ter rodado no banco.
+  
   const algumMarcadoComoDono = funcionarios.some(f => f.dono === true);
   const donoDaLojaId = algumMarcadoComoDono
     ? (funcionarios.find(f => f.dono === true)?.id ?? -1)

@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from './ui/button';
 import { Copy, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface PixCobrancaDialogProps {
   open: boolean;
@@ -50,8 +51,15 @@ export function PixCobrancaDialog({ open, onOpenChange, valor, carregando, copia
             </div>
           ) : copiaECola ? (
             <>
-              <p className="text-xs text-muted-foreground mb-2">
-                Peça pro cliente abrir o app do banco dele, escolher "Pix Copia e Cola" e colar o código abaixo:
+              
+              <div className="flex justify-center mb-4">
+                <div className="p-3 bg-white rounded-lg border border-border">
+                  <QRCodeSVG value={copiaECola} size={200} level="M" marginSize={0} />
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground mb-2 text-center">
+                Escaneie com a câmera do banco, ou copie o código "Pix Copia e Cola" abaixo:
               </p>
               <textarea
                 readOnly

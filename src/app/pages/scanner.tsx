@@ -290,7 +290,8 @@ export default function ScannerPDV() {
  
       toast.success("Operação concluída com sucesso!", { id: 'op' });
       if (tipo === 'SAIDA') {
-       
+        // 🟢 NOVO: guarda o resumo ANTES de limpar o carrinho, pra oferecer
+        // "Gerar PIX" / "Enviar recibo por WhatsApp" logo depois de vender.
         setUltimaVendaResumo({ itens: carrinho, total: totalCarrinho });
       }
       setCarrinho([]);
@@ -366,7 +367,7 @@ export default function ScannerPDV() {
  
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
 
-  
+  // 🟢 NOVO: gera a cobrança PIX do valor total da última venda
   const handleGerarPix = async (valor: number) => {
     setPixValor(valor);
     setPixCopiaECola(null);
@@ -383,7 +384,10 @@ export default function ScannerPDV() {
     }
   };
 
-  
+  // 🟢 NOVO: monta o recibo em texto e abre o WhatsApp com ele pré-preenchido
+  // pro cliente. Telefone é opcional/manual porque o PDV normalmente não
+  // cadastra cliente nenhum na venda avulsa — só pergunta na hora, se o dono
+  // da loja quiser mandar o recibo.
   const handleEnviarRecibo = () => {
     if (!ultimaVendaResumo) return;
     const telefoneLimpo = telefoneRecibo.replace(/[^0-9]/g, '');
@@ -417,7 +421,11 @@ export default function ScannerPDV() {
     setRelatorioImportacao(null);
   };
  
-  
+  // 🟢 CORRIGIDO: o backend não tem uma rota de "prévia" — POST /importacao/xml-direto
+  // já extrai os dados do XML da nota E salva os produtos/lotes no estoque em uma
+  // única chamada, retornando uma String de relatório (igual ao fluxo já usado em
+  // importacao.tsx). O antigo par de rotas '/importacao/processar-xml' +
+  // '/importacao/salvar' não existe no ImportacaoController e sempre resultava em 404.
   const handleProcessarXML = async () => {
     if (!file) return;
     try {
@@ -662,7 +670,7 @@ export default function ScannerPDV() {
             </Card>
           </div>
 
-          {/*  ações pós-venda — some assim que um novo item entra no carrinho */}
+          {/* 🟢 NOVO: ações pós-venda — some assim que um novo item entra no carrinho */}
           {ultimaVendaResumo && carrinho.length === 0 && (
             <Card className="mt-4 border-green-500/20 bg-green-500/5">
               <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -848,7 +856,7 @@ export default function ScannerPDV() {
         </DialogContent>
       </Dialog>
 
-      {/*  cobrança PIX e recibo por WhatsApp pós-venda */}
+      
       <PixCobrancaDialog
         open={modalPixAberto}
         onOpenChange={setModalPixAberto}

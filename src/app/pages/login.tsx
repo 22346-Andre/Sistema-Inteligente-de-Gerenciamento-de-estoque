@@ -120,7 +120,7 @@ export default function Login() {
 
             <div className="flex justify-center pb-2">
               <GoogleLogin
-                
+                // 🚨 Agora chamamos a função real que manda o token pro Java!
                 onSuccess={async (credentialResponse) => {
                   if (credentialResponse.credential) {
                     try {

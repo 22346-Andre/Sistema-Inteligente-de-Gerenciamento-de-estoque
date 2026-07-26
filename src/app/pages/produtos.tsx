@@ -72,8 +72,6 @@ export default function Produtos() {
 
   const [novoProduto, setNovoProduto] = useState<any>(estadoInicialProduto);
 
-  // 🟢 NOVO: paginação — antes carregarDados() trazia o catálogo INTEIRO numa
-  // única chamada (listarTodos), o que ficava pesado com milhares de produtos.
   const TAMANHO_PAGINA = 25;
   const [pagina, setPagina] = useState(0);
   const [totalPaginas, setTotalPaginas] = useState(0);
@@ -81,14 +79,10 @@ export default function Produtos() {
   const [carregandoProdutos, setCarregandoProdutos] = useState(false);
   const [buscaDebounced, setBuscaDebounced] = useState(busca);
 
-  // 🟢 NOVO: resumo desacoplado da página atual — vem de /dashboard/resumo (sem
-  // restrição de perfil), então continua correto independente de estar vendo a
-  // página 1 ou a página 8 da tabela.
+  
   const [resumoGeral, setResumoGeral] = useState({ totalProdutos: 0, produtosCriticos: 0, valorEmEstoque: 0 });
 
-  // 🟢 NOVO: badges de Curva ABC por produto — vem de /estatisticas/curva-abc
-  // (ADMIN/SUPER_ADMIN). Se o usuário não tiver permissão, falha silenciosamente
-  // e a tabela simplesmente não mostra os badges, sem travar a tela.
+ 
   const [classificacaoAbcPorProduto, setClassificacaoAbcPorProduto] = useState<Record<number, string>>({});
 
   // Debounce da busca: espera 400ms sem digitar antes de consultar o backend,
@@ -500,7 +494,7 @@ export default function Produtos() {
             </div>
           )}
 
-          {/*  controles de paginação */}
+         
           {totalPaginas > 1 && !carregandoProdutos && (
             <div className="flex items-center justify-between px-2 py-4 border-t border-border">
               <p className="text-xs text-muted-foreground">
