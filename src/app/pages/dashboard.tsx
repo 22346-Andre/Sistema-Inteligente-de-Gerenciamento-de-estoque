@@ -251,11 +251,8 @@ export default function Dashboard() {
   }, [estoqueMorto]);
  
  
-  // 🟢 CORRIGIDO: antes calculava a Curva ABC no frontend a partir de
-  // Produto.classificacaoABC (removido do backend — era recalculado, errado,
-  // em toda listagem de produto). Agora busca de GET /estatisticas/curva-abc,
-  // já calculada por demanda (faturamento/lucratividade/giro), sob demanda,
-  // só quando essa tela realmente é aberta.
+  
+  
   const [criterioABC, setCriterioABC] = useState<'faturamento' | 'lucratividade' | 'giro'>('faturamento');
   const [curvaAbcItens, setCurvaAbcItens] = useState<Awaited<ReturnType<typeof dashboardService.obterCurvaABC>>>([]);
   const [carregandoABC, setCarregandoABC] = useState(false);
@@ -303,14 +300,14 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400">Visão geral e inteligência do seu estoque</p>
+        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-muted-foreground">Visão geral e inteligência do seu estoque</p>
       </div>
  
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="shadow-sm border-l-4 border-l-green-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold text-gray-700 dark:text-white">Capital Imobilizado</CardTitle>
+            <CardTitle className="text-sm font-bold text-green-700 dark:text-green-400">Capital Imobilizado</CardTitle>
             <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
           </CardHeader>
           <CardContent>
@@ -327,7 +324,7 @@ export default function Dashboard() {
  
         <Card className="shadow-sm border-l-4 border-l-blue-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold text-gray-700 dark:text-white">Giro de Estoque</CardTitle>
+            <CardTitle className="text-sm font-bold text-blue-700 dark:text-blue-400">Giro de Estoque</CardTitle>
             <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           </CardHeader>
           <CardContent>
@@ -342,11 +339,11 @@ export default function Dashboard() {
           </CardContent>
         </Card>
  
-        {/* 🟢 Total de Produtos e Atenção Necessária não dependem mais de
+        {/*  Total de Produtos e Atenção Necessária não dependem mais de
             acessoFinanceiroNegado — vêm de /dashboard/resumo, sem restrição. */}
         <Card className="shadow-sm border-l-4 border-l-purple-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold text-gray-700 dark:text-white">Total de Produtos</CardTitle>
+            <CardTitle className="text-sm font-bold text-purple-700 dark:text-purple-400">Total de Produtos</CardTitle>
             <Package className="h-4 w-4 text-purple-600 dark:text-purple-400" />
           </CardHeader>
           <CardContent>
@@ -357,7 +354,7 @@ export default function Dashboard() {
  
         <Card className="shadow-sm border-l-4 border-l-red-500 dark:bg-gray-800 dark:border-gray-700 transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold text-gray-700 dark:text-white">Atenção Necessária</CardTitle>
+            <CardTitle className="text-sm font-bold text-red-700 dark:text-red-400">Atenção Necessária</CardTitle>
             <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
           </CardHeader>
           <CardContent>
@@ -375,7 +372,7 @@ export default function Dashboard() {
               <CardTitle className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 text-lg">
                 <PieChart className="h-5 w-5" /> Curva ABC
               </CardTitle>
-              {/* 🟢 NOVO: Curva ABC multidimensional — o lojista escolhe o critério */}
+              {/*  Curva ABC multidimensional — o lojista escolhe o critério */}
               <select
                 value={criterioABC}
                 onChange={(e) => setCriterioABC(e.target.value as typeof criterioABC)}

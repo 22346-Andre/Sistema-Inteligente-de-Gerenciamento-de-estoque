@@ -79,6 +79,10 @@ export default function Produtos() {
   const [carregandoProdutos, setCarregandoProdutos] = useState(false);
   const [buscaDebounced, setBuscaDebounced] = useState(busca);
 
+  // filtro por categoria
+  const [categoriaFiltro, setCategoriaFiltro] = useState('');
+  const [categoriasDisponiveis, setCategoriasDisponiveis] = useState<string[]>([]);
+
   
   const [resumoGeral, setResumoGeral] = useState({ totalProdutos: 0, produtosCriticos: 0, valorEmEstoque: 0 });
 
@@ -105,7 +109,7 @@ export default function Produtos() {
   useEffect(() => {
     carregarProdutosPagina();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagina, buscaDebounced]);
+  }, [pagina, buscaDebounced, categoriaFiltro]);
 
   useEffect(() => {
     carregarDadosAuxiliares();
@@ -114,7 +118,7 @@ export default function Produtos() {
   const carregarProdutosPagina = async () => {
     try {
       setCarregandoProdutos(true);
-      const resultado = await produtoService.listarPaginado(pagina, TAMANHO_PAGINA, buscaDebounced);
+      const resultado = await produtoService.listarPaginado(pagina, TAMANHO_PAGINA, buscaDebounced, categoriaFiltro);
       setProdutos(resultado.content);
       setTotalPaginas(resultado.totalPages);
       setTotalElementos(resultado.totalElements);
@@ -154,6 +158,12 @@ export default function Produtos() {
       setClassificacaoAbcPorProduto(mapa);
     } catch (error) {
       // silencioso — perfil CAIXA não tem acesso, tabela só não mostra os badges
+    }
+    try {
+      const categorias = await produtoService.listarCategorias();
+      setCategoriasDisponiveis(categorias);
+    } catch (error) {
+      // silencioso — filtro de categoria simplesmente não aparece
     }
   };
 
@@ -227,7 +237,7 @@ export default function Produtos() {
     }
   };
 
-  // 🟢 CORRIGIDO: busca agora é feita no backend (via buscaDebounced em
+  // : busca agora é feita no backend (via buscaDebounced em
   // carregarProdutosPagina), não filtrando um array já carregado inteiro em
   // memória — "produtos" já vem só com os itens da página atual.
 
@@ -412,9 +422,22 @@ export default function Produtos() {
 
       <Card className="bg-card border-border shadow-sm">
         <CardHeader>
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Buscar por nome ou código de barras..." value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-10 bg-background text-foreground" />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Buscar por nome ou código de barras..." value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-10 bg-background text-foreground" />
+            </div>
+            {/*  filtro por categoria */}
+            <select
+              value={categoriaFiltro}
+              onChange={(e) => { setCategoriaFiltro(e.target.value); setPagina(0); }}
+              className="w-full sm:w-56 rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm"
+            >
+              <option value="">Todas as categorias</option>
+              {categoriasDisponiveis.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
           </div>
         </CardHeader>
         <CardContent>

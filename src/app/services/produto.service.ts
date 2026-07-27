@@ -75,13 +75,21 @@ export const produtoService = {
   },
 
   
-  async listarPaginado(page: number, size: number, busca?: string): Promise<{
+  async listarPaginado(page: number, size: number, busca?: string, categoria?: string): Promise<{
     content: Produto[];
     totalPages: number;
     totalElements: number;
     number: number;
   }> {
-    const response = await api.get('/produtos/paginado', { params: { page, size, busca: busca || undefined } });
+    const response = await api.get('/produtos/paginado', {
+      params: { page, size, busca: busca || undefined, categoria: categoria || undefined }
+    });
+    return response.data;
+  },
+
+  // 🟢 NOVO: categorias já cadastradas, pra popular o filtro
+  async listarCategorias(): Promise<string[]> {
+    const response = await api.get('/produtos/categorias');
     return response.data;
   },
 

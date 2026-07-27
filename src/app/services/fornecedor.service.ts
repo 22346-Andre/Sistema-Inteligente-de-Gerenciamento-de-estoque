@@ -9,6 +9,7 @@ export interface Fornecedor {
   email: string;
   endereco: string;
   prazoEntregaDias?: number;
+  categoriasFornecidas?: string;
 }
 
 export interface FornecedorDTO {
@@ -18,6 +19,7 @@ export interface FornecedorDTO {
   email: string;
   endereco: string;
   prazoEntregaDias?: number;
+  categoriasFornecidas?: string;
 }
 
 export const fornecedorService = {

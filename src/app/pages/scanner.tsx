@@ -290,7 +290,7 @@ export default function ScannerPDV() {
  
       toast.success("Operação concluída com sucesso!", { id: 'op' });
       if (tipo === 'SAIDA') {
-        // 🟢 NOVO: guarda o resumo ANTES de limpar o carrinho, pra oferecer
+        //  guarda o resumo ANTES de limpar o carrinho, pra oferecer
         // "Gerar PIX" / "Enviar recibo por WhatsApp" logo depois de vender.
         setUltimaVendaResumo({ itens: carrinho, total: totalCarrinho });
       }
@@ -367,7 +367,7 @@ export default function ScannerPDV() {
  
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
 
-  // 🟢 NOVO: gera a cobrança PIX do valor total da última venda
+  //  gera a cobrança PIX do valor total da última venda
   const handleGerarPix = async (valor: number) => {
     setPixValor(valor);
     setPixCopiaECola(null);
@@ -384,7 +384,7 @@ export default function ScannerPDV() {
     }
   };
 
-  // 🟢 NOVO: monta o recibo em texto e abre o WhatsApp com ele pré-preenchido
+  // monta o recibo em texto e abre o WhatsApp com ele pré-preenchido
   // pro cliente. Telefone é opcional/manual porque o PDV normalmente não
   // cadastra cliente nenhum na venda avulsa — só pergunta na hora, se o dono
   // da loja quiser mandar o recibo.
@@ -421,11 +421,7 @@ export default function ScannerPDV() {
     setRelatorioImportacao(null);
   };
  
-  // 🟢 CORRIGIDO: o backend não tem uma rota de "prévia" — POST /importacao/xml-direto
-  // já extrai os dados do XML da nota E salva os produtos/lotes no estoque em uma
-  // única chamada, retornando uma String de relatório (igual ao fluxo já usado em
-  // importacao.tsx). O antigo par de rotas '/importacao/processar-xml' +
-  // '/importacao/salvar' não existe no ImportacaoController e sempre resultava em 404.
+  
   const handleProcessarXML = async () => {
     if (!file) return;
     try {
@@ -670,7 +666,7 @@ export default function ScannerPDV() {
             </Card>
           </div>
 
-          {/* 🟢 NOVO: ações pós-venda — some assim que um novo item entra no carrinho */}
+          {/*  ações pós-venda — some assim que um novo item entra no carrinho */}
           {ultimaVendaResumo && carrinho.length === 0 && (
             <Card className="mt-4 border-green-500/20 bg-green-500/5">
               <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -801,7 +797,7 @@ export default function ScannerPDV() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-lg"><Info className="h-5 w-5" /> Dica para o Gestor</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 text-amber-900 dark:text-amber-200/80 text-justify">
+              <CardContent className="space-y-4 text-amber-800 dark:text-amber-200 text-justify">
                 <p className="text-sm sm:text-base"><strong>Por que usar o XML e não o PDF?</strong></p>
                 <p className="text-xs sm:text-sm">O arquivo XML é o padrão oficial da Receita Federal (SEFAZ). O XML contém os dados de forma <strong>100% estruturada e exata</strong>.</p>
                 <p className="text-xs sm:text-sm">Ao usar o XML, o sistema garante precisão absoluta na extração de nomes, códigos de barras e preços de custo.</p>

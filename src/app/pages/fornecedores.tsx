@@ -45,6 +45,7 @@ interface Fornecedor {
   telefone: string;
   email: string;
   endereco: string;
+  categoriasFornecidas?: string;
 }
 
 type FornecedorForm = Omit<Fornecedor, 'id'>;
@@ -55,6 +56,7 @@ const FORNECEDOR_VAZIO: FornecedorForm = {
   telefone: '',
   email: '',
   endereco: '',
+  categoriasFornecidas: '',
 };
 
 // =========================================================
@@ -497,6 +499,16 @@ export default function Fornecedores() {
                   onChange={(e) => setNovoFornecedor({ ...novoFornecedor, endereco: e.target.value })}
                 />
               </div>
+              {/* 🟢 NOVO: campo opcional — categorias de itens que o fornecedor fornece */}
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Categorias fornecidas <span className="text-xs text-muted-foreground font-normal">(opcional)</span></Label>
+                <Input
+                  placeholder="Ex: Bebidas, Higiene, Limpeza"
+                  value={novoFornecedor.categoriasFornecidas || ''}
+                  onChange={(e) => setNovoFornecedor({ ...novoFornecedor, categoriasFornecidas: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Separe por vírgula. Deixe em branco se não quiser categorizar.</p>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={salvandoNovo}>
@@ -589,6 +601,15 @@ export default function Fornecedores() {
                   <Input
                     value={fornecedorEditando.endereco ?? ''}
                     onChange={(e) => setFornecedorEditando({ ...fornecedorEditando, endereco: e.target.value })}
+                  />
+                </div>
+                {/* 🟢 NOVO: campo opcional — categorias de itens que o fornecedor fornece */}
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Categorias fornecidas <span className="text-xs text-muted-foreground font-normal">(opcional)</span></Label>
+                  <Input
+                    placeholder="Ex: Bebidas, Higiene, Limpeza"
+                    value={fornecedorEditando.categoriasFornecidas ?? ''}
+                    onChange={(e) => setFornecedorEditando({ ...fornecedorEditando, categoriasFornecidas: e.target.value })}
                   />
                 </div>
               </div>
@@ -746,6 +767,16 @@ export default function Fornecedores() {
                           </div>
                         ) : (
                           '—'
+                        )}
+                        {/* 🟢 NOVO: categorias fornecidas, se cadastradas */}
+                        {fornecedor.categoriasFornecidas && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {fornecedor.categoriasFornecidas.split(',').map((cat) => cat.trim()).filter(Boolean).map((cat) => (
+                              <span key={cat} className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary">
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </TableCell>
                       <TableCell className="text-right">

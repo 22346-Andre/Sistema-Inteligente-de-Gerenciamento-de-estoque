@@ -259,26 +259,26 @@ export default function SugestoesCompra() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Sugestões de Compra</h1>
-        <p className="text-gray-600">O que vai faltar amanhã e quanto isso vai custar hoje</p>
+        <p className="text-muted-foreground">O que vai faltar amanhã e quanto isso vai custar hoje</p>
       </div>
 
       {/* ================= CAMADA 1 — VISÃO EXECUTIVA ================= */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Bloco Financeiro */}
-        <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-6">
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-4 flex items-center gap-1.5">
             <Wallet className="h-3.5 w-3.5" /> Financeiro
           </p>
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <p className="text-sm text-gray-600">Investimento Necessário</p>
+              <p className="text-sm text-muted-foreground">Investimento Necessário</p>
               <p className="text-3xl md:text-4xl font-bold text-emerald-700 leading-tight">{formatBRL(valorTotal)}</p>
-              <p className="text-xs text-gray-500 mt-1">{totalSugestoes} produto{totalSugestoes !== 1 ? 's' : ''} para comprar</p>
+              <p className="text-xs text-muted-foreground mt-1">{totalSugestoes} produto{totalSugestoes !== 1 ? 's' : ''} para comprar</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Pedido Médio</p>
-              <p className="text-2xl md:text-3xl font-bold text-gray-800 leading-tight">{formatBRL(valorMedioPorFornecedor)}</p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-sm text-muted-foreground">Pedido Médio</p>
+              <p className="text-2xl md:text-3xl font-bold text-foreground leading-tight">{formatBRL(valorMedioPorFornecedor)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
                 por fornecedor · {quantidadeMediaSugerida.toFixed(0)} un. em média por item
               </p>
             </div>
@@ -286,8 +286,8 @@ export default function SugestoesCompra() {
         </div>
 
         {/* Bloco Operacional — Termômetro da IA */}
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-4 flex items-center gap-1.5">
+        <div className="rounded-2xl border border-border bg-muted/50 p-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-4 flex items-center gap-1.5">
             <Gauge className="h-3.5 w-3.5" /> Operacional
           </p>
           <div className="grid grid-cols-2 gap-6 items-center">
@@ -310,7 +310,7 @@ export default function SugestoesCompra() {
                   {mediaUrgencia.toFixed(0)}
                 </span>
                 <span
-                  className="text-[10px] text-gray-500 flex items-center gap-0.5"
+                  className="text-[10px] text-muted-foreground flex items-center gap-0.5"
                   title="Combina estoque atual, vendas recentes e prazo do fornecedor num único número de 0 a 100. Quanto maior, mais urgente é repor."
                 >
                   urgência média <Info className="h-2.5 w-2.5 cursor-help" />
@@ -318,9 +318,9 @@ export default function SugestoesCompra() {
               </div>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Produtos Críticos</p>
+              <p className="text-sm text-muted-foreground">Produtos Críticos</p>
               <p className="text-3xl md:text-4xl font-bold text-red-600 leading-tight">{urgentes}</p>
-              <p className="text-xs text-gray-500 mt-1">estoque zerado ou prioridade máxima</p>
+              <p className="text-xs text-muted-foreground mt-1">estoque zerado ou prioridade máxima</p>
             </div>
           </div>
         </div>
@@ -332,7 +332,7 @@ export default function SugestoesCompra() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Investimento por Urgência</CardTitle>
-              <p className="text-xs text-gray-500">Quanto do orçamento é crítico vs. preventivo</p>
+              <p className="text-xs text-muted-foreground">Quanto do orçamento é crítico vs. preventivo</p>
             </CardHeader>
             <CardContent>
               <div className="relative h-[220px] flex items-center justify-center">
@@ -355,15 +355,15 @@ export default function SugestoesCompra() {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-xl font-bold text-gray-800">{formatBRL(valorTotal)}</span>
-                  <span className="text-xs text-gray-500">total</span>
+                  <span className="text-xl font-bold text-foreground">{formatBRL(valorTotal)}</span>
+                  <span className="text-xs text-muted-foreground">total</span>
                 </div>
               </div>
               <div className="flex items-center justify-center gap-4 mt-2">
-                <span className="flex items-center gap-1 text-xs text-gray-600">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <span className="h-2 w-2 rounded-full bg-red-600" /> Urgente
                 </span>
-                <span className="flex items-center gap-1 text-xs text-gray-600">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
                   <span className="h-2 w-2 rounded-full bg-yellow-500" /> Atenção
                 </span>
               </div>
@@ -373,7 +373,7 @@ export default function SugestoesCompra() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Investimento Necessário por Fornecedor</CardTitle>
-              <p className="text-xs text-gray-500">Para onde vai o orçamento da semana</p>
+              <p className="text-xs text-muted-foreground">Para onde vai o orçamento da semana</p>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={220}>
@@ -402,7 +402,7 @@ export default function SugestoesCompra() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Lista Inteligente de Compras</CardTitle>
-            <p className="text-sm text-gray-600 mt-1">Agrupada por fornecedor · passe o mouse na barra de prioridade pra ver o porquê</p>
+            <p className="text-sm text-muted-foreground mt-1">Agrupada por fornecedor · passe o mouse na barra de prioridade pra ver o porquê</p>
           </div>
 
           <div className="flex gap-2">
@@ -432,7 +432,7 @@ export default function SugestoesCompra() {
                       className="inline-flex items-center gap-1"
                       title="Combina estoque atual, vendas recentes e prazo do fornecedor. Quanto maior, mais prioridade tem a compra."
                     >
-                      Prioridade <Info className="h-3 w-3 text-gray-400 cursor-help" />
+                      Prioridade <Info className="h-3 w-3 text-muted-foreground cursor-help" />
                     </span>
                   </TableHead>
                   <TableHead>Produto</TableHead>
@@ -445,13 +445,13 @@ export default function SugestoesCompra() {
                 {gruposPorFornecedor.map((grupo) => (
                   <Fragment key={grupo.fornecedor}>
                     {/* Cabeçalho do grupo — nome do fornecedor + ação em lote */}
-                    <TableRow className="bg-gray-50 hover:bg-gray-50">
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
                       <TableCell colSpan={6} className="py-2.5">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                            <Truck className="h-4 w-4 text-gray-400" />
+                          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                            <Truck className="h-4 w-4 text-muted-foreground" />
                             {grupo.fornecedor}
-                            <span className="text-xs font-normal text-gray-400">
+                            <span className="text-xs font-normal text-muted-foreground">
                               ({grupo.itens.length} {grupo.itens.length === 1 ? 'item' : 'itens'})
                             </span>
                             {motivoPossivelSubestimativa(grupo.fornecedor) && (
@@ -461,11 +461,11 @@ export default function SugestoesCompra() {
                             )}
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="text-xs text-gray-500 font-medium">{formatBRL(grupo.valorTotalGrupo)}</span>
+                            <span className="text-xs text-muted-foreground font-medium">{formatBRL(grupo.valorTotalGrupo)}</span>
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50 h-7 px-2"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-500/10 h-7 px-2"
                               title={`Pedir tudo de ${grupo.fornecedor} via WhatsApp`}
                               onClick={() => handlePedirFornecedor(grupo.fornecedor, grupo.telefone)}
                             >
@@ -495,7 +495,7 @@ export default function SugestoesCompra() {
                           {/* Tooltip de explicabilidade — "Por que comprar?" */}
                           <div className="relative group inline-block">
                             <div className="flex items-center gap-2 w-28 cursor-help">
-                              <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+                              <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                                 <div
                                   className="h-full rounded-full transition-all duration-500"
                                   style={{
@@ -504,7 +504,7 @@ export default function SugestoesCompra() {
                                   }}
                                 />
                               </div>
-                              <span className="text-xs font-medium text-gray-600 w-7 text-right">
+                              <span className="text-xs font-medium text-muted-foreground w-7 text-right">
                                 {sugestao.grauUrgencia.toFixed(0)}
                               </span>
                             </div>

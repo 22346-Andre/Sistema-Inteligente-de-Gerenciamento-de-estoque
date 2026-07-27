@@ -238,7 +238,10 @@ export default function ContasReceber() {
           <TabsTrigger value="sugestoes" className="data-[state=active]:bg-orange-500/10 data-[state=active]:text-orange-700 dark:data-[state=active]:text-orange-400">
             <AlertCircle className="w-4 h-4 mr-2" /> Para Cobrar Hoje ({sugestoes.length})
           </TabsTrigger>
-          <TabsTrigger value="todas">
+          <TabsTrigger
+            value="todas"
+            className="data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400"
+          >
             <Clock className="w-4 h-4 mr-2" /> Todas as Contas
           </TabsTrigger>
         </TabsList>
