@@ -11,6 +11,7 @@ import { dashboardService } from '../services/dashboard.service';
 import { produtoService, Produto } from '../services/produto.service';
 import { toast } from 'sonner';
 import api from '../services/api';
+import { useCriterioAbc } from '../hooks/useCriterioAbc';
  
 interface DashboardStats {
   // 🔒 vêm de /estatisticas (ADMIN/SUPER_ADMIN) — podem ficar bloqueados
@@ -253,7 +254,7 @@ export default function Dashboard() {
  
   
   
-  const [criterioABC, setCriterioABC] = useState<'faturamento' | 'lucratividade' | 'giro'>('faturamento');
+  const [criterioABC, setCriterioABC] = useCriterioAbc();
   const [curvaAbcItens, setCurvaAbcItens] = useState<Awaited<ReturnType<typeof dashboardService.obterCurvaABC>>>([]);
   const [carregandoABC, setCarregandoABC] = useState(false);
 

@@ -26,6 +26,7 @@ import { fornecedorService, Fornecedor } from '../services/fornecedor.service';
 import { dashboardService } from '../services/dashboard.service';
 import { toast } from 'sonner';
 import api from '../services/api';
+import { useCriterioAbc } from '../hooks/useCriterioAbc';
 
 const formatBRL = (valor: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
@@ -88,6 +89,8 @@ export default function Produtos() {
 
  
   const [classificacaoAbcPorProduto, setClassificacaoAbcPorProduto] = useState<Record<number, string>>({});
+  
+  const [criterioAbc, setCriterioAbc] = useCriterioAbc();
 
   // Debounce da busca: espera 400ms sem digitar antes de consultar o backend,
   // pra não disparar uma requisição a cada tecla.
@@ -115,6 +118,23 @@ export default function Produtos() {
     carregarDadosAuxiliares();
   }, []);
 
+  
+  useEffect(() => {
+    carregarClassificacaoAbc();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [criterioAbc]);
+
+  const carregarClassificacaoAbc = async () => {
+    try {
+      const curvaAbc = await dashboardService.obterCurvaABC(criterioAbc, 90);
+      const mapa: Record<number, string> = {};
+      curvaAbc.forEach((item) => { mapa[item.produtoId] = item.classe; });
+      setClassificacaoAbcPorProduto(mapa);
+    } catch (error) {
+      // silencioso — perfil CAIXA não tem acesso, tabela só não mostra os badges
+    }
+  };
+
   const carregarProdutosPagina = async () => {
     try {
       setCarregandoProdutos(true);
@@ -130,7 +150,7 @@ export default function Produtos() {
     }
   };
 
-  // Fornecedores (pro formulário) + resumo geral (cards do topo) + badges de ABC
+  // Fornecedores (pro formulário) + resumo geral (cards do topo)
   // — tudo independente da paginação da tabela, carregado uma vez só.
   const carregarDadosAuxiliares = async () => {
     try {
@@ -152,14 +172,6 @@ export default function Produtos() {
     }
 
     try {
-      const curvaAbc = await dashboardService.obterCurvaABC('faturamento', 90);
-      const mapa: Record<number, string> = {};
-      curvaAbc.forEach((item) => { mapa[item.produtoId] = item.classe; });
-      setClassificacaoAbcPorProduto(mapa);
-    } catch (error) {
-      // silencioso — perfil CAIXA não tem acesso, tabela só não mostra os badges
-    }
-    try {
       const categorias = await produtoService.listarCategorias();
       setCategoriasDisponiveis(categorias);
     } catch (error) {
@@ -171,6 +183,7 @@ export default function Produtos() {
   const recarregarTudo = () => {
     carregarProdutosPagina();
     carregarDadosAuxiliares();
+    carregarClassificacaoAbc();
   };
 
   const adicionarLinhaImpostoNovo = () => {
@@ -437,6 +450,18 @@ export default function Produtos() {
               {categoriasDisponiveis.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
+            </select>
+            {/* 🟢 NOVO: critério da Curva ABC — mesmo valor usado no Dashboard,
+                sincronizado via useCriterioAbc (localStorage compartilhado) */}
+            <select
+              value={criterioAbc}
+              onChange={(e) => setCriterioAbc(e.target.value as typeof criterioAbc)}
+              title="Critério usado para calcular a Classe A/B/C de cada produto"
+              className="w-full sm:w-56 rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm"
+            >
+              <option value="faturamento">Classe ABC por Faturamento</option>
+              <option value="lucratividade">Classe ABC por Lucratividade</option>
+              <option value="giro">Classe ABC por Giro</option>
             </select>
           </div>
         </CardHeader>
