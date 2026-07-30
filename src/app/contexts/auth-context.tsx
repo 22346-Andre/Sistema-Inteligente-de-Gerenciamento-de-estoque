@@ -16,6 +16,9 @@ interface AuthContextType {
   // 🚨 1. Adicionamos a função do Google na interface
   loginComGoogle: (googleToken: string) => Promise<void>; 
   cadastrar: (data: CadastroData) => Promise<void>;
+  // etapa 2 do cadastro — confirma o código e, se válido, já loga o usuário
+  confirmarCadastro: (email: string, codigo: string, senha: string) => Promise<void>;
+  reenviarCodigoCadastro: (email: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
   atualizarUsuarioNoContexto: (novoNome: string) => void; 
@@ -56,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const loginRequest: LoginRequest = { email, senha };
       
       const response = await authService.login(loginRequest);
-      const token = response.token || response.accessToken; 
+      const token = response.accessToken;
       localStorage.setItem('token', token);
       
       const dadosReais = await authService.getMe();
@@ -85,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // 1. Manda o token do Google para o nosso Java e pega o nosso Token
       const response = await authService.loginComGoogle(googleToken);
-      const token = response.token || response.accessToken; 
+      const token = response.accessToken;
       localStorage.setItem('token', token);
       
       // 2. Busca os dados reais de quem acabou de logar
@@ -113,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const cadastrar = async (data: CadastroData) => {
     setIsLoading(true);
     try {
-      // ✅ AGORA SIM: O mapeamento usa os nomes exatos do Java
+      
       const registroData: RegistroEmpresaDTO = {
         nomeDono: data.nomeDono,           
         email: data.email,             
@@ -126,9 +129,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         telefoneEmpresa: data.celular
       };
       
-      await authService.registrarEmpresa(registroData);
       
-      await login(data.email, data.senha);
+      await authService.registrarEmpresa(registroData);
       
     } catch (error) {
       throw error;
@@ -136,6 +138,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     }
   };
+
+  
+  const confirmarCadastro = async (email: string, codigo: string, senha: string) => {
+    setIsLoading(true);
+    try {
+      await authService.confirmarCadastro(email, codigo);
+      await login(email, senha);
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const reenviarCodigoCadastro = async (email: string) => {
+    await authService.reenviarCodigoCadastro(email);
+  };
+
 
   // 🚪 Função de Logout
   const logout = () => {
@@ -162,6 +182,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login, 
       loginComGoogle, // 🚨 3. Repassando a função para as telas poderem usar
       cadastrar, 
+      confirmarCadastro,
+      reenviarCodigoCadastro,
       logout, 
       isLoading,
       atualizarUsuarioNoContexto 

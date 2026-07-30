@@ -39,6 +39,17 @@ export const authService = {
     return response.data;
   },
 
+  
+  async confirmarCadastro(email: string, codigo: string): Promise<string> {
+    const response = await api.post('/auth/confirmar-cadastro', { email, codigo });
+    return response.data;
+  },
+
+  async reenviarCodigoCadastro(email: string): Promise<string> {
+    const response = await api.post('/auth/reenviar-codigo-cadastro', { email });
+    return response.data;
+  },
+
   logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');

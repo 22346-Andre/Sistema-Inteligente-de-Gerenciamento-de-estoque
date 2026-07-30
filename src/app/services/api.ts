@@ -40,6 +40,14 @@ api.interceptors.response.use(
     const isAcessoNegado = error.response && (error.response.status === 400 || error.response.status === 403);
     if (isRotaRestrita && isAcessoNegado) return Promise.reject(error);
 
+    
+    const isFormularioComTratamentoProprio =
+      url.includes('/auth/registrar-empresa') ||
+      url.includes('/auth/login') ||
+      url.includes('/auth/confirmar-cadastro') ||
+      url.includes('/auth/reenviar-codigo-cadastro');
+    if (isFormularioComTratamentoProprio) return Promise.reject(error);
+
     if (error.response) {
       switch (error.response.status) {
         case 401:
@@ -54,10 +62,10 @@ api.interceptors.response.use(
         case 404:
           toast.error('Recurso não encontrado.');
           break;
-        case 409: // 🟢 estoque insuficiente / violação de integridade
+        case 409: //  estoque insuficiente / violação de integridade
           toast.error(extrairMensagemErro(error, 'Conflito ao processar a requisição.'));
           break;
-        case 400: // 🟢 validação / regra de negócio
+        case 400: // validação / regra de negócio
           toast.error(extrairMensagemErro(error, 'Dados inválidos.'));
           break;
         case 500:

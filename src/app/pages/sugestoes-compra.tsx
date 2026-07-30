@@ -132,7 +132,7 @@ export default function SugestoesCompra() {
     }
   };
 
-  // 🚨 A MÁGICA DO WHATSAPP COM RESUMO INTELIGENTE AQUI
+  //  WHATSAPP COM RESUMO INTELIGENTE AQUI
   // Observação: essa função já pega TODOS os itens do fornecedor informado,
   // então funciona igual tanto se chamada de um botão por produto quanto de
   // um botão único por grupo — por isso o agrupamento por fornecedor (abaixo)
@@ -399,19 +399,19 @@ export default function SugestoesCompra() {
 
       {/* ================= CAMADA 3 — O CÉREBRO FUZZY E A AÇÃO ================= */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <CardTitle>Lista Inteligente de Compras</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">Agrupada por fornecedor · passe o mouse na barra de prioridade pra ver o porquê</p>
           </div>
 
-          <div className="flex gap-2">
-            <Button onClick={handleEnviarEmail} variant="outline" disabled={sugestoes.length === 0}>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <Button onClick={handleEnviarEmail} variant="outline" disabled={sugestoes.length === 0} className="w-full sm:w-auto">
               <Mail className="mr-2 h-4 w-4" />
               E-mail Completo (Gestor)
             </Button>
 
-            <Button onClick={handleBaixarPlanilha} disabled={sugestoes.length === 0}>
+            <Button onClick={handleBaixarPlanilha} disabled={sugestoes.length === 0} className="w-full sm:w-auto">
               <Download className="mr-2 h-4 w-4" />
               Baixar Planilha (Completa)
             </Button>
@@ -423,6 +423,7 @@ export default function SugestoesCompra() {
               Ótimo trabalho! Nenhum produto está com estoque crítico no momento.
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -530,6 +531,7 @@ export default function SugestoesCompra() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

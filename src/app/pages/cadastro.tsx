@@ -22,8 +22,15 @@ export default function Cadastro() {
   // Estado para guardar os erros que vêm do Java
   const [erros, setErros] = useState<Record<string, string>>({});
   
-  const { cadastrar, isAuthenticated } = useAuth();
+  const { cadastrar, confirmarCadastro, reenviarCodigoCadastro, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  
+  const [etapa, setEtapa] = useState<'formulario' | 'verificacao'>('formulario');
+  const [codigo, setCodigo] = useState('');
+  const [confirmando, setConfirmando] = useState(false);
+  const [reenviando, setReenviando] = useState(false);
+  const [erroCodigo, setErroCodigo] = useState('');
 
   
   useEffect(() => {
@@ -87,8 +94,8 @@ export default function Cadastro() {
 
       await cadastrar(dadosParaEnviar);
       
-      toast.success('Cadastro realizado com sucesso!');
-      navigate('/dashboard'); 
+      toast.success('Código de confirmação enviado! Confira seu e-mail.');
+      setEtapa('verificacao');
       
     } catch (error: any) {
       console.error("❌ Ocorreu um erro ao cadastrar:", error);
@@ -122,6 +129,44 @@ export default function Cadastro() {
     }
   };
 
+  const handleConfirmarCodigo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (confirmando) return;
+    setErroCodigo('');
+
+    if (codigo.trim().length !== 6) {
+      setErroCodigo('Informe os 6 dígitos do código.');
+      return;
+    }
+
+    setConfirmando(true);
+    try {
+      await confirmarCadastro(formData.email, codigo.trim(), formData.senha);
+      toast.success('E-mail confirmado! Cadastro concluído com sucesso.');
+      navigate('/dashboard');
+    } catch (error: any) {
+      const mensagem = error.response?.data?.erro || error.response?.data?.message || 'Código inválido. Tente novamente.';
+      setErroCodigo(mensagem);
+      toast.error(mensagem);
+    } finally {
+      setConfirmando(false);
+    }
+  };
+
+  const handleReenviarCodigo = async () => {
+    if (reenviando) return;
+    setReenviando(true);
+    try {
+      await reenviarCodigoCadastro(formData.email);
+      toast.success('Novo código enviado! Confira seu e-mail.');
+    } catch (error: any) {
+      const mensagem = error.response?.data?.erro || 'Erro ao reenviar o código. Tente novamente em instantes.';
+      toast.error(mensagem);
+    } finally {
+      setReenviando(false);
+    }
+  };
+
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden bg-black">
       {/* Efeitos de Fundo */}
@@ -140,12 +185,62 @@ export default function Cadastro() {
           </div>
           <div>
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              Cadastre sua Empresa
+              {etapa === 'formulario' ? 'Cadastre sua Empresa' : 'Confirme seu e-mail'}
             </CardTitle>
-            <CardDescription className="text-gray-400 mt-2">Preencha os dados para começar a usar o EstoqueMax</CardDescription>
+            <CardDescription className="text-gray-400 mt-2">
+              {etapa === 'formulario'
+                ? 'Preencha os dados para começar a usar o EstoqueMax'
+                : <>Enviamos um código de 6 dígitos para <strong className="text-gray-300">{formData.email}</strong></>}
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
+          {etapa === 'verificacao' ? (
+            <form onSubmit={handleConfirmarCodigo} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="codigo" className={erroCodigo ? 'text-red-400' : 'text-gray-300'}>Código de confirmação</Label>
+                <Input
+                  id="codigo"
+                  name="codigo"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={codigo}
+                  onChange={(e) => { setCodigo(e.target.value.replace(/\D/g, '')); if (erroCodigo) setErroCodigo(''); }}
+                  autoFocus
+                  className={`bg-gray-800/50 text-white text-center text-2xl tracking-[0.5em] placeholder:text-gray-600 placeholder:tracking-[0.5em] ${erroCodigo ? 'border-red-500 focus:ring-red-500' : 'border-gray-700 focus:border-blue-500 focus:ring-blue-500'}`}
+                />
+                {erroCodigo && <p className="text-xs text-red-500 flex items-center mt-1"><AlertCircle className="w-3 h-3 mr-1" />{erroCodigo}</p>}
+                <p className="text-xs text-gray-500">O código expira em 15 minutos. Confira também a caixa de spam.</p>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={confirmando}
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-6 shadow-lg shadow-blue-500/30 transition-all hover:shadow-blue-500/50 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {confirmando ? 'Confirmando...' : 'Confirmar e concluir cadastro'}
+              </Button>
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-gray-400 pt-4 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setEtapa('formulario')}
+                  className="text-gray-400 hover:text-gray-300 transition-colors"
+                >
+                  ← Corrigir dados do cadastro
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReenviarCodigo}
+                  disabled={reenviando}
+                  className="text-blue-400 hover:text-blue-300 font-medium transition-colors disabled:opacity-60"
+                >
+                  {reenviando ? 'Reenviando...' : 'Reenviar código'}
+                </button>
+              </div>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -235,6 +330,7 @@ export default function Cadastro() {
               </Link>
             </div>
           </form>
+          )}
         </CardContent>
       </Card>
 
