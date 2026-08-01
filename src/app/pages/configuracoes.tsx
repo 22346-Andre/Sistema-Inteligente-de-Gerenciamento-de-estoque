@@ -69,7 +69,13 @@ export default function Configuracoes() {
   // type X to type Y may be a mistake...". Passar por `unknown` primeiro é a
   // forma seguro de fazer essa conversão quando temos certeza do shape real
   // devolvido em runtime.
-  const { user } = (useAuth() as unknown) as { user?: { id?: string; email?: string } };
+  const { user } = (useAuth() as unknown) as { user?: { id?: string; email?: string; role?: string } };
+
+  // 🟢 NOVO: só ADMIN/SUPER_ADMIN podem editar os dados da empresa — Caixa e
+  // Estoquista têm o formulário travado (o backend já bloqueia isso também,
+  // isso aqui é só pra não deixar a pessoa preencher tudo e só descobrir na
+  // hora de salvar que não tinha permissão).
+  const podeEditarEmpresa = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   const [empresaData, setEmpresaData] = useState({ cnpj: '', razaoSocial: '', nomeFantasia: '', email: '', celular: '', endereco: '', cidade: '', estado: '', chavePix: '' });
   const [salvandoEmpresa, setSalvandoEmpresa] = useState(false);
@@ -251,6 +257,15 @@ export default function Configuracoes() {
           <Card className="bg-card dark:bg-gray-800 border-border dark:border-gray-700 border-l-4 border-l-blue-500">
             <CardHeader><CardTitle className="text-foreground dark:text-white">Dados da Empresa</CardTitle></CardHeader>
             <CardContent className="space-y-4">
+              {/* 🟢 NOVO: Caixa/Estoquista veem o formulário, mas travado — a
+                  edição de dados da empresa é só pra ADMIN/SUPER_ADMIN. */}
+              {!podeEditarEmpresa && (
+                <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                  <Lock className="h-4 w-4 shrink-0" />
+                  Somente Administradores podem editar os dados da empresa. Fale com o gerente responsável.
+                </div>
+              )}
+              <fieldset disabled={!podeEditarEmpresa} className="space-y-4 disabled:opacity-60">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1.5 text-foreground dark:text-gray-300">CNPJ <Lock className="h-3 w-3 text-muted-foreground dark:text-gray-500" /></Label>
@@ -306,6 +321,7 @@ export default function Configuracoes() {
               <div className="flex justify-end pt-4">
                 <Button onClick={handleSalvarEmpresa} disabled={salvandoEmpresa}>{salvandoEmpresa ? 'Salvando...' : 'Salvar Alterações'}</Button>
               </div>
+              </fieldset>
             </CardContent>
           </Card>
         </TabsContent>
