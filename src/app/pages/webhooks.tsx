@@ -26,7 +26,6 @@ interface EmpresaWebhook {
 const CORPO_EXEMPLO = `{
   "origem": "MERCADO_LIVRE",
   "idPedido": "123456",
-  "empresaId": SEU_ID,
   "itens": [
     { "codigoBarras": "7891234567890", "quantidade": 2 }
   ]
@@ -209,14 +208,17 @@ export default function Webhooks() {
               </p>
               <div className="flex items-start gap-2">
                 <pre className="flex-1 bg-muted dark:bg-gray-900 border border-border dark:border-gray-700 text-foreground dark:text-gray-200 rounded-md px-3 py-2 font-mono text-xs overflow-x-auto whitespace-pre">
-{CORPO_EXEMPLO.replace('SEU_ID', String(empresa.id))}
+{CORPO_EXEMPLO}
                 </pre>
-                <Button type="button" size="icon" variant="outline" onClick={() => copiarParaAreaDeTransferencia(CORPO_EXEMPLO.replace('SEU_ID', String(empresa.id)), 'Corpo do JSON')} className="dark:border-gray-700 dark:hover:bg-gray-700">
+                <Button type="button" size="icon" variant="outline" onClick={() => copiarParaAreaDeTransferencia(CORPO_EXEMPLO, 'Corpo do JSON')} className="dark:border-gray-700 dark:hover:bg-gray-700">
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground dark:text-gray-400 mt-1.5">
-                <code>codigoBarras</code> precisa bater com um produto já cadastrado no SmartStock — se não encontrar, esse item é ignorado (mas os outros da mesma venda continuam sendo processados).
+                Não é preciso informar o ID da sua empresa no JSON — o sistema já sabe quem é você a partir do cabeçalho <code>X-Webhook-Secret</code>, com mais segurança.
+              </p>
+              <p className="text-xs text-muted-foreground dark:text-gray-400 mt-1.5">
+                <code>codigoBarras</code> precisa bater com um produto já cadastrado no SmartStock. A requisição sempre retorna sucesso (200), mesmo se algum item da venda não puder ser processado (produto não encontrado ou estoque insuficiente) — os demais itens da mesma venda continuam sendo processados normalmente, e você recebe um alerta dentro do sistema avisando qual item falhou e por quê, pra você não precisar ficar monitorando logs.
               </p>
             </div>
 
