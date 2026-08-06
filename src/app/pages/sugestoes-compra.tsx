@@ -351,7 +351,10 @@ export default function SugestoesCompra() {
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => formatBRL(value)} />
+                    <Tooltip
+                      formatter={(value: number) => formatBRL(value)}
+                      contentStyle={{ backgroundColor: 'var(--popover)', borderColor: 'var(--border)', color: 'var(--popover-foreground)' }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -378,17 +381,20 @@ export default function SugestoesCompra() {
             <CardContent>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={investimentoPorFornecedorData} layout="vertical" margin={{ left: 8, right: 24 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => formatBRL(v)} />
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickFormatter={(v) => formatBRL(v)} />
                   <YAxis
                     type="category"
                     dataKey="fornecedor"
                     width={110}
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                     axisLine={false}
                     tickLine={false}
                   />
-                  <Tooltip formatter={(value: number) => formatBRL(value)} />
+                  <Tooltip
+                    formatter={(value: number) => formatBRL(value)}
+                    contentStyle={{ backgroundColor: 'var(--popover)', borderColor: 'var(--border)', color: 'var(--popover-foreground)' }}
+                  />
                   <Bar dataKey="valor" fill="#2563eb" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>

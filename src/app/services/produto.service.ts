@@ -51,11 +51,14 @@ export interface LoteDTO {
   chaveNotaFiscal?: string;
 }
 
+export type FormaPagamento = 'CARTAO_DEBITO' | 'CARTAO_CREDITO' | 'PIX' | 'ESPECIE' | 'FIADO';
+
 export interface SaidaDTO {
   quantidadeDesejada: number;
   tipo?: string;
   motivo?: string;
   chaveNotaFiscal?: string;
+  formaPagamento?: FormaPagamento; // 🆕
 }
 
 export const produtoService = {

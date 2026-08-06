@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { format, parseISO, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { fiadoService, ContaReceber } from '../services/fiado.service';
+import { produtoService, Produto } from '../services/produto.service';
 import { pixService } from '../services/pix.Service';
 import { PixCobrancaDialog } from '../components/PixCobrancaDialog';
 
@@ -53,9 +54,21 @@ export default function ContasReceber() {
   const [editDescricao, setEditDescricao] = useState('');
   const [editDataVencimento, setEditDataVencimento] = useState('');
 
+  // 🆕 Autocomplete de produto (busca exatamente o nome cadastrado no estoque)
+  const [catalogoProdutos, setCatalogoProdutos] = useState<Produto[]>([]);
+  const [sugestoesProdutoNovo, setSugestoesProdutoNovo] = useState<Produto[]>([]);
+  const [sugestoesProdutoEdit, setSugestoesProdutoEdit] = useState<Produto[]>([]);
+
   useEffect(() => {
     carregarDados();
+    produtoService.listarTodos().then(setCatalogoProdutos).catch(() => {});
   }, []);
+
+  // Filtra o catálogo pelo texto digitado; usado tanto no form de criar quanto no de editar.
+  const buscarSugestoesProduto = (valor: string): Produto[] => {
+    if (valor.trim().length < 2) return [];
+    return catalogoProdutos.filter(p => p.nome.toLowerCase().includes(valor.toLowerCase())).slice(0, 6);
+  };
 
   const carregarDados = async () => {
     setLoading(true);
@@ -390,7 +403,28 @@ export default function ContasReceber() {
             </div>
             <div>
               <label className="text-sm font-medium">Resumo da Compra</label>
-              <Input placeholder="Ex: Fardo de Coca-Cola e Salgados" value={novaDescricao} onChange={e => setNovaDescricao(e.target.value)} />
+              <div className="relative">
+                <Input
+                  placeholder="Ex: Fardo de Coca-Cola e Salgados"
+                  value={novaDescricao}
+                  onChange={e => { setNovaDescricao(e.target.value); setSugestoesProdutoNovo(buscarSugestoesProduto(e.target.value)); }}
+                  onBlur={() => setTimeout(() => setSugestoesProdutoNovo([]), 150)}
+                />
+                {sugestoesProdutoNovo.length > 0 && (
+                  <div className="absolute z-30 mt-1 w-full rounded-md border border-border bg-popover text-popover-foreground shadow-lg max-h-48 overflow-y-auto">
+                    {sugestoesProdutoNovo.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                        onMouseDown={() => { setNovaDescricao(p.nome); setSugestoesProdutoNovo([]); }}
+                      >
+                        {p.nome}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium">Data Combinada para Pagamento</label>
@@ -428,7 +462,28 @@ export default function ContasReceber() {
             </div>
             <div>
               <label className="text-sm font-medium">Resumo da Compra</label>
-              <Input placeholder="Ex: Fardo de Coca-Cola e Salgados" value={editDescricao} onChange={e => setEditDescricao(e.target.value)} />
+              <div className="relative">
+                <Input
+                  placeholder="Ex: Fardo de Coca-Cola e Salgados"
+                  value={editDescricao}
+                  onChange={e => { setEditDescricao(e.target.value); setSugestoesProdutoEdit(buscarSugestoesProduto(e.target.value)); }}
+                  onBlur={() => setTimeout(() => setSugestoesProdutoEdit([]), 150)}
+                />
+                {sugestoesProdutoEdit.length > 0 && (
+                  <div className="absolute z-30 mt-1 w-full rounded-md border border-border bg-popover text-popover-foreground shadow-lg max-h-48 overflow-y-auto">
+                    {sugestoesProdutoEdit.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                        onMouseDown={() => { setEditDescricao(p.nome); setSugestoesProdutoEdit([]); }}
+                      >
+                        {p.nome}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium">Data Combinada para Pagamento</label>

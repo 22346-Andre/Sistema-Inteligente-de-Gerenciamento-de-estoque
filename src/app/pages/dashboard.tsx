@@ -396,15 +396,15 @@ export default function Dashboard() {
               <>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={dadosGraficoABC}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="categoria" fontSize={12} stroke="#9ca3af" />
-                    <YAxis fontSize={12} stroke="#9ca3af" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="categoria" fontSize={12} stroke="var(--muted-foreground)" />
+                    <YAxis fontSize={12} stroke="var(--muted-foreground)" />
                     <Tooltip
                       formatter={(value: number, _name, item: any) => [
                         `${value}% do valor · ${item?.payload?.produtos ?? 0} produto(s)`,
                         'Participação',
                       ]}
-                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f3f4f6' }}
+                      contentStyle={{ backgroundColor: 'var(--popover)', borderColor: 'var(--border)', color: 'var(--popover-foreground)' }}
                     />
                     <Bar dataKey="porcentagem" radius={[4, 4, 0, 0]}>
                       {dadosGraficoABC.map((entry, index) => (
@@ -442,12 +442,12 @@ export default function Dashboard() {
               <>
                 <ResponsiveContainer width="100%" height={170}>
                   <BarChart data={dadosGraficoPerdas}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="mes" fontSize={12} stroke="#9ca3af" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="mes" fontSize={12} stroke="var(--muted-foreground)" />
                     <Tooltip
                       formatter={(value: number) => formatBRL(value)}
-                      cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }}
-                      contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f3f4f6' }}
+                      cursor={{ fill: 'var(--muted)' }}
+                      contentStyle={{ backgroundColor: 'var(--popover)', borderColor: 'var(--border)', color: 'var(--popover-foreground)' }}
                     />
                     <Bar dataKey="valor" fill="#ef4444" radius={[4, 4, 0, 0]} />
                   </BarChart>
@@ -481,7 +481,7 @@ export default function Dashboard() {
                       <p className="font-bold text-sm text-orange-900 dark:text-orange-100 truncate max-w-[150px]">{produto.nome}</p>
                       <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">Qtd: <span className="font-black text-red-600 dark:text-red-400">{produto.quantidade}</span></p>
                     </div>
-                    <Link to={`/scanner`}>
+                    <Link to={`/scanner?produto=${encodeURIComponent(produto.codigoBarras)}`}>
                       <Button size="sm" variant="outline" className="border-orange-300 dark:border-orange-500 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 h-8">
                         Repor
                       </Button>

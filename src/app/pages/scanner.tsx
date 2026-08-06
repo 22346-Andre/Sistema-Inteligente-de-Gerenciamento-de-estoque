@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -12,9 +13,11 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import api from '../services/api';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { produtoService, Produto } from '../services/produto.service';
+import { produtoService, Produto, FormaPagamento } from '../services/produto.service';
 import { pixService } from '../services/pix.Service';
 import { PixCobrancaDialog } from '../components/PixCobrancaDialog';
+import { PagamentoDialog } from '../components/PagamentoDialog';
+import { fiadoService } from '../services/fiado.service';
  
 interface ItemCarrinho {
   produto: Produto;
@@ -102,11 +105,43 @@ export default function ScannerPDV() {
   const [modalReciboAberto, setModalReciboAberto] = useState(false);
   const [telefoneRecibo, setTelefoneRecibo] = useState('');
   const [ultimaVendaResumo, setUltimaVendaResumo] = useState<{ itens: ItemCarrinho[]; total: number } | null>(null);
- 
+
+  // 🆕 FILTRO DO HISTÓRICO POR FORMA DE PAGAMENTO
+  const [filtroFormaPagamento, setFiltroFormaPagamento] = useState<string>('TODAS');
+
+  // 🆕 MODAL DE FORMA DE PAGAMENTO (fechamento do PDV)
+  const [modalPagamentoAberto, setModalPagamentoAberto] = useState(false);
+
+  // 🆕 MODAL DE REGISTRO DE FIADO (Contas a Receber) quando a venda é paga como Fiado
+  const [modalFiadoAberto, setModalFiadoAberto] = useState(false);
+  const [fiadoCliente, setFiadoCliente] = useState('');
+  const [fiadoTelefone, setFiadoTelefone] = useState('');
+  const [fiadoPendente, setFiadoPendente] = useState<{ itens: ItemCarrinho[]; total: number } | null>(null);
+
+  // 🆕 NAVEGAÇÃO INTELIGENTE: lê ?produto=<codigoBarras> vindo do botão "Repor" do Dashboard
+  const [searchParams, setSearchParams] = useSearchParams();
+
   useEffect(() => {
     carregarProdutos();
     carregarHistorico();
   }, []);
+
+  // 🆕 Assim que o catálogo carregar, se veio um produto via URL (?produto=...),
+  // pré-carrega ele no carrinho automaticamente pra reposição.
+  useEffect(() => {
+    const codigoParam = searchParams.get('produto');
+    if (!codigoParam || produtos.length === 0) return;
+
+    const produtoEncontrado = produtos.find(p => p.codigoBarras === codigoParam);
+    if (produtoEncontrado) {
+      adicionarAoCarrinho(produtoEncontrado);
+      toast.success(`${produtoEncontrado.nome} pré-carregado para reposição.`);
+    } else {
+      toast.error(`Produto do código ${codigoParam} não encontrado.`);
+    }
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [produtos]);
  
   const carregarProdutos = async () => {
     try {
@@ -131,6 +166,7 @@ export default function ScannerPDV() {
             chaveExibicao: chaveAgrupamento,
             data: mov.dataMovimentacao,
             tipo: mov.tipo,
+            formaPagamento: mov.formaPagamento ?? null, // 🆕
             totalItens: 0,
             valorTotal: 0,
             nomes: [],
@@ -181,15 +217,11 @@ export default function ScannerPDV() {
   const adicionarAoCarrinho = (produto: Produto) => {
     setCarrinho(prev => {
       const existente = prev.find(item => item.produto.id === produto.id);
-      const qtdAtual = existente ? existente.quantidade : 0;
- 
-      // Trava no estoque disponível em vez de deixar acumular infinitamente e só
-      // avisar lá na frente, na hora de finalizar a venda.
-      if (produto.quantidade > 0 && qtdAtual + 1 > produto.quantidade) {
-        toast.warning(`Estoque máximo atingido para "${produto.nome}" (${produto.quantidade} disponíveis).`);
-        return prev;
-      }
- 
+
+      // 🟢 CORREÇÃO: sem trava de estoque máximo aqui. O mesmo carrinho serve
+      // tanto para Entrada (reposição) quanto para Venda, e a reposição
+      // precisa poder somar ao estoque livremente, mesmo com saldo positivo.
+      // Quem valida estoque insuficiente pra VENDA é o handleFinalizar('SAIDA').
       if (existente) {
         toast.success(`${produto.nome} — quantidade atualizada.`);
         return prev.map(item => item.produto.id === produto.id ? { ...item, quantidade: item.quantidade + 1 } : item);
@@ -199,17 +231,13 @@ export default function ScannerPDV() {
     });
     setTermoBusca('');
   };
- 
+
   const alterarQuantidade = (produtoId: number, novaQtd: number) => {
     if (novaQtd < 1) return;
-    setCarrinho(prev => prev.map(item => {
-      if (item.produto.id !== produtoId) return item;
-      if (item.produto.quantidade > 0 && novaQtd > item.produto.quantidade) {
-        toast.warning(`Estoque máximo atingido para "${item.produto.nome}" (${item.produto.quantidade} disponíveis).`);
-        return item;
-      }
-      return { ...item, quantidade: novaQtd };
-    }));
+    // 🟢 CORREÇÃO: mesma remoção da trava de estoque máximo (ver adicionarAoCarrinho).
+    setCarrinho(prev => prev.map(item =>
+      item.produto.id === produtoId ? { ...item, quantidade: novaQtd } : item
+    ));
   };
  
   const removerDoCarrinho = (produtoId: number) => {
@@ -221,6 +249,11 @@ export default function ScannerPDV() {
   const totalCarrinho = carrinho.reduce((acc, item) => acc + ((item.produto.precoVenda || item.produto.precoCusto || 0) * item.quantidade), 0);
   const totalItens = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
   const carrinhoExcedeEstoque = carrinho.some(item => item.quantidade > item.produto.quantidade);
+
+  // 🆕 Histórico filtrado por forma de pagamento (aba Histórico)
+  const historicoFiltrado = filtroFormaPagamento === 'TODAS'
+    ? historicoAgrupado
+    : historicoAgrupado.filter((g: any) => g.formaPagamento === filtroFormaPagamento);
  
   useEffect(() => {
     let scanner: Html5QrcodeScanner | null = null;
@@ -258,7 +291,7 @@ export default function ScannerPDV() {
     }
   };
  
-  const handleFinalizar = async (tipo: 'SAIDA' | 'ENTRADA') => {
+  const handleFinalizar = async (tipo: 'SAIDA' | 'ENTRADA', formaPagamento?: FormaPagamento) => {
     if (carrinho.length === 0) return;
  
     if (tipo === 'SAIDA') {
@@ -274,25 +307,37 @@ export default function ScannerPDV() {
     try {
       toast.loading(`A processar ${tipo === 'SAIDA' ? 'Venda' : 'Entrada'}...`, { id: 'op' });
       const chaveUnica = Array.from({length: 15}, () => Math.floor(Math.random() * 10)).join('');
+
+      // guarda os itens/total ANTES de limpar o carrinho, já que o fluxo de
+      // Fiado (abaixo) precisa deles depois do loop de registrarSaida.
+      const itensDaVenda = carrinho;
+      const totalDaVenda = totalCarrinho;
  
       for (const item of carrinho) {
         if (tipo === 'SAIDA') {
           await produtoService.registrarSaida(item.produto.id, {
             quantidadeDesejada: item.quantidade,
             motivo: "Venda Caixa PDV",
-            chaveNotaFiscal: chaveUnica
+            chaveNotaFiscal: chaveUnica,
+            formaPagamento, // 🆕
           });
         } else {
           await api.post(`/produtos/${item.produto.id}/lotes`, { quantidade: item.quantidade, novoPrecoCompra: item.produto.precoCusto });
         }
         itensProcessados++;
       }
+
+      // 🆕 Se a venda foi paga como Fiado, abre o modal pra capturar o
+      // cliente e registrar a dívida em Contas a Receber.
+      if (tipo === 'SAIDA' && formaPagamento === 'FIADO') {
+        abrirRegistroFiadoDaVenda(itensDaVenda, totalDaVenda);
+      }
  
       toast.success("Operação concluída com sucesso!", { id: 'op' });
       if (tipo === 'SAIDA') {
         //  guarda o resumo ANTES de limpar o carrinho, pra oferecer
         // "Gerar PIX" / "Enviar recibo por WhatsApp" logo depois de vender.
-        setUltimaVendaResumo({ itens: carrinho, total: totalCarrinho });
+        setUltimaVendaResumo({ itens: itensDaVenda, total: totalDaVenda });
       }
       setCarrinho([]);
       carregarProdutos();
@@ -316,6 +361,41 @@ export default function ScannerPDV() {
         carregarProdutos();
         carregarHistorico();
       }
+    }
+  };
+
+  // 🆕 MÓDULO FIADO (Contas a Receber) — abre o modal pra capturar o cliente
+  // assim que uma venda é fechada com formaPagamento === 'FIADO'.
+  const abrirRegistroFiadoDaVenda = (itens: ItemCarrinho[], total: number) => {
+    setFiadoPendente({ itens, total });
+    setModalFiadoAberto(true);
+  };
+
+  const confirmarFiado = async () => {
+    if (!fiadoPendente) return;
+    if (!fiadoCliente.trim() || fiadoTelefone.replace(/\D/g, '').length < 10) {
+      toast.error('Informe nome e um WhatsApp válido do cliente.');
+      return;
+    }
+    try {
+      const descricao = fiadoPendente.itens.map(i => `${i.quantidade}x ${i.produto.nome}`).join(', ');
+      const daqui7dias = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      await fiadoService.registrarFiado({
+        nomeCliente: fiadoCliente.trim(),
+        telefoneCliente: fiadoTelefone.replace(/\D/g, ''),
+        valor: fiadoPendente.total,
+        descricao,
+        dataVencimento: daqui7dias,
+      });
+
+      toast.success('Venda registrada em Contas a Receber!');
+      setModalFiadoAberto(false);
+      setFiadoCliente('');
+      setFiadoTelefone('');
+      setFiadoPendente(null);
+    } catch (error) {
+      toast.error(extrairMensagemErro(error, 'Erro ao registrar o fiado.'));
     }
   };
  
@@ -649,7 +729,7 @@ export default function ScannerPDV() {
  
                     <Button
                       className="h-12 sm:h-14 bg-green-600 hover:bg-green-700 text-white shadow-lg w-full"
-                      onClick={() => handleFinalizar('SAIDA')}
+                      onClick={() => setModalPagamentoAberto(true)}
                       disabled={carrinho.length === 0 || carrinhoExcedeEstoque}
                     >
                       <CheckCircle className="mr-2 h-4 w-4" /> Vender
@@ -695,13 +775,30 @@ export default function ScannerPDV() {
         <TabsContent value="historico">
           <Card className="overflow-hidden w-full bg-card border-border">
             <CardHeader className="border-b border-border">
-              <CardTitle>Histórico de Transações do Caixa</CardTitle>
-              <CardDescription>Compras de múltiplos items aparecem agrupadas no mesmo recibo.</CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <CardTitle>Histórico de Transações do Caixa</CardTitle>
+                  <CardDescription>Compras de múltiplos items aparecem agrupadas no mesmo recibo.</CardDescription>
+                </div>
+                {/* 🆕 Filtro por forma de pagamento */}
+                <select
+                  value={filtroFormaPagamento}
+                  onChange={(e) => setFiltroFormaPagamento(e.target.value)}
+                  className="text-xs sm:text-sm rounded-md border border-input bg-background text-foreground px-2 py-1.5 self-start sm:self-auto"
+                >
+                  <option value="TODAS">Todas as formas</option>
+                  <option value="CARTAO_DEBITO">Cartão Débito</option>
+                  <option value="CARTAO_CREDITO">Cartão Crédito</option>
+                  <option value="PIX">PIX</option>
+                  <option value="ESPECIE">Espécie</option>
+                  <option value="FIADO">Fiado</option>
+                </select>
+              </div>
             </CardHeader>
             <CardContent className="p-0 sm:p-6 w-full">
               {carregandoHistorico ? (
                 <div className="text-center py-8 text-muted-foreground">A consultar a base de dados...</div>
-              ) : historicoAgrupado.length === 0 ? (
+              ) : historicoFiltrado.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground bg-muted rounded-lg m-4 border border-border">Sem histórico de operações recente.</div>
               ) : (
                 <div className="overflow-x-auto w-full">
@@ -718,7 +815,7 @@ export default function ScannerPDV() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {historicoAgrupado.slice(0, 30).map(grp => {
+                        {historicoFiltrado.slice(0, 30).map(grp => {
                           const infoTipo = infoTipoMovimentacao(grp.tipo);
                           return (
                             <TableRow key={grp.chaveExibicao} className="hover:bg-muted/50">
@@ -882,6 +979,37 @@ export default function ScannerPDV() {
           <DialogFooter className="gap-2 sm:gap-0 mt-2">
             <Button variant="outline" onClick={() => setModalReciboAberto(false)} className="w-full sm:w-auto">Cancelar</Button>
             <Button onClick={handleEnviarRecibo} className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto">Abrir WhatsApp</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 🆕 Modal de forma de pagamento no fechamento da venda */}
+      <PagamentoDialog
+        aberto={modalPagamentoAberto}
+        totalVenda={totalCarrinho}
+        onCancelar={() => setModalPagamentoAberto(false)}
+        onConfirmar={(forma) => {
+          setModalPagamentoAberto(false);
+          handleFinalizar('SAIDA', forma);
+        }}
+      />
+
+      {/* 🆕 Modal pra capturar o cliente quando a venda é fechada como Fiado */}
+      <Dialog open={modalFiadoAberto} onOpenChange={setModalFiadoAberto}>
+        <DialogContent className="sm:max-w-md w-[95%] mx-auto rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Quem está ficando fiado?</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm mt-2">
+              Essa venda vai entrar em Contas a Receber. Informe o cliente pra podermos cobrar depois.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Input placeholder="Nome do cliente" value={fiadoCliente} onChange={e => setFiadoCliente(e.target.value)} />
+            <Input placeholder="WhatsApp (com DDD)" value={fiadoTelefone} onChange={e => setFiadoTelefone(e.target.value)} />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0 mt-2">
+            <Button variant="outline" onClick={() => setModalFiadoAberto(false)} className="w-full sm:w-auto">Cancelar</Button>
+            <Button onClick={confirmarFiado} className="w-full sm:w-auto">Confirmar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
