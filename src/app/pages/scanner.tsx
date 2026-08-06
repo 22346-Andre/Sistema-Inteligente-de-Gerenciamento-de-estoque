@@ -106,19 +106,19 @@ export default function ScannerPDV() {
   const [telefoneRecibo, setTelefoneRecibo] = useState('');
   const [ultimaVendaResumo, setUltimaVendaResumo] = useState<{ itens: ItemCarrinho[]; total: number } | null>(null);
 
-  // 🆕 FILTRO DO HISTÓRICO POR FORMA DE PAGAMENTO
+  //  FILTRO DO HISTÓRICO POR FORMA DE PAGAMENTO
   const [filtroFormaPagamento, setFiltroFormaPagamento] = useState<string>('TODAS');
 
-  // 🆕 MODAL DE FORMA DE PAGAMENTO (fechamento do PDV)
+  //  MODAL DE FORMA DE PAGAMENTO (fechamento do PDV)
   const [modalPagamentoAberto, setModalPagamentoAberto] = useState(false);
 
-  // 🆕 MODAL DE REGISTRO DE FIADO (Contas a Receber) quando a venda é paga como Fiado
+  //  MODAL DE REGISTRO DE FIADO (Contas a Receber) quando a venda é paga como Fiado
   const [modalFiadoAberto, setModalFiadoAberto] = useState(false);
   const [fiadoCliente, setFiadoCliente] = useState('');
   const [fiadoTelefone, setFiadoTelefone] = useState('');
   const [fiadoPendente, setFiadoPendente] = useState<{ itens: ItemCarrinho[]; total: number } | null>(null);
 
-  // 🆕 NAVEGAÇÃO INTELIGENTE: lê ?produto=<codigoBarras> vindo do botão "Repor" do Dashboard
+  //  NAVEGAÇÃO INTELIGENTE: lê ?produto=<codigoBarras> vindo do botão "Repor" do Dashboard
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function ScannerPDV() {
     carregarHistorico();
   }, []);
 
-  // 🆕 Assim que o catálogo carregar, se veio um produto via URL (?produto=...),
+  //  Assim que o catálogo carregar, se veio um produto via URL (?produto=...),
   // pré-carrega ele no carrinho automaticamente pra reposição.
   useEffect(() => {
     const codigoParam = searchParams.get('produto');
