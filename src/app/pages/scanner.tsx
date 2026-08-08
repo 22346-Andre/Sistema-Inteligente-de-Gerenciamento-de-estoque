@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
-import { Camera, Plus, UploadCloud, FileCode, Trash2, Barcode, FileUp, CheckCircle, Search, Clock, FileText, ShoppingCart, AlertTriangle, Printer, Info, XCircle, PackageX, QrCode, MessageCircle } from 'lucide-react';
+import { Camera, Plus, UploadCloud, FileCode, Trash2, Barcode, FileUp, CheckCircle, Search, Clock, FileText, ShoppingCart, AlertTriangle, Printer, XCircle, PackageX, QrCode, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -18,6 +18,7 @@ import { pixService } from '../services/pix.Service';
 import { PixCobrancaDialog } from '../components/PixCobrancaDialog';
 import { PagamentoDialog } from '../components/PagamentoDialog';
 import { fiadoService } from '../services/fiado.service';
+import { InstrucoesButton } from '../components/InstrucoesButton';
  
 interface ItemCarrinho {
   produto: Produto;
@@ -106,10 +107,10 @@ export default function ScannerPDV() {
   const [telefoneRecibo, setTelefoneRecibo] = useState('');
   const [ultimaVendaResumo, setUltimaVendaResumo] = useState<{ itens: ItemCarrinho[]; total: number } | null>(null);
 
-  // 🆕 FILTRO DO HISTÓRICO POR FORMA DE PAGAMENTO
+  //  FILTRO DO HISTÓRICO POR FORMA DE PAGAMENTO
   const [filtroFormaPagamento, setFiltroFormaPagamento] = useState<string>('TODAS');
 
-  // 🆕 MODAL DE FORMA DE PAGAMENTO (fechamento do PDV)
+  // MODAL DE FORMA DE PAGAMENTO (fechamento do PDV)
   const [modalPagamentoAberto, setModalPagamentoAberto] = useState(false);
 
   // 🆕 MODAL DE REGISTRO DE FIADO (Contas a Receber) quando a venda é paga como Fiado
@@ -118,7 +119,7 @@ export default function ScannerPDV() {
   const [fiadoTelefone, setFiadoTelefone] = useState('');
   const [fiadoPendente, setFiadoPendente] = useState<{ itens: ItemCarrinho[]; total: number } | null>(null);
 
-  // 🆕 NAVEGAÇÃO INTELIGENTE: lê ?produto=<codigoBarras> vindo do botão "Repor" do Dashboard
+  // NAVEGAÇÃO INTELIGENTE: lê ?produto=<codigoBarras> vindo do botão "Repor" do Dashboard
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
@@ -126,7 +127,7 @@ export default function ScannerPDV() {
     carregarHistorico();
   }, []);
 
-  // 🆕 Assim que o catálogo carregar, se veio um produto via URL (?produto=...),
+  // Assim que o catálogo carregar, se veio um produto via URL (?produto=...),
   // pré-carrega ele no carrinho automaticamente pra reposição.
   useEffect(() => {
     const codigoParam = searchParams.get('produto');
@@ -855,11 +856,16 @@ export default function ScannerPDV() {
         </TabsContent>
  
         <TabsContent value="xml">
-           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-2 border-dashed border-border bg-muted/30 w-full">
-              <CardHeader>
-                <CardTitle>Enviar Documento</CardTitle>
-                <CardDescription>Arraste o arquivo XML da Nota Fiscal</CardDescription>
+           <Card className="border-2 border-dashed border-border bg-muted/30 w-full max-w-2xl mx-auto">
+              <CardHeader className="flex flex-row items-start justify-between gap-3">
+                <div>
+                  <CardTitle>Enviar Documento</CardTitle>
+                  <CardDescription>Arraste o arquivo XML da Nota Fiscal</CardDescription>
+                </div>
+                <InstrucoesButton titulo="Por que usar o XML e não o PDF?" label="Dica do Gestor">
+                  <p>O arquivo XML é o padrão oficial da Receita Federal (SEFAZ). O XML contém os dados de forma <strong>100% estruturada e exata</strong>.</p>
+                  <p>Ao usar o XML, o sistema garante precisão absoluta na extração de nomes, códigos de barras e preços de custo.</p>
+                </InstrucoesButton>
               </CardHeader>
               <CardContent className="flex flex-col items-center justify-center py-6 sm:py-10">
                 {!file ? (
@@ -889,19 +895,7 @@ export default function ScannerPDV() {
                 <input type="file" ref={fileInputRef} className="hidden" accept=".xml, text/xml, application/xml" onChange={handleFileInput} />
               </CardContent>
             </Card>
- 
-            <Card className="bg-amber-500/5 border-amber-500/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-lg"><Info className="h-5 w-5" /> Dica para o Gestor</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 text-amber-800 dark:text-amber-200 text-justify">
-                <p className="text-sm sm:text-base"><strong>Por que usar o XML e não o PDF?</strong></p>
-                <p className="text-xs sm:text-sm">O arquivo XML é o padrão oficial da Receita Federal (SEFAZ). O XML contém os dados de forma <strong>100% estruturada e exata</strong>.</p>
-                <p className="text-xs sm:text-sm">Ao usar o XML, o sistema garante precisão absoluta na extração de nomes, códigos de barras e preços de custo.</p>
-              </CardContent>
-            </Card>
-          </div>
- 
+
           {relatorioImportacao && (
             <Card className="mt-6 border-green-500/20 shadow-md w-full overflow-hidden bg-card">
               <CardHeader className="bg-green-500/5 border-b border-green-500/20">

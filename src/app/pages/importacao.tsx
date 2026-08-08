@@ -8,7 +8,6 @@ import {
   FileCode2,
   CheckCircle2,
   AlertTriangle,
-  Info,
   ArrowRight,
   Trash2,
   Loader2,
@@ -19,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
+import { InstrucoesButton } from '../components/InstrucoesButton';
 
 const TAMANHO_MAXIMO_MB = 15;
 const EXTENSOES_ACEITAS = ['.csv', '.xml'];
@@ -213,11 +213,98 @@ export default function Importacao() {
           <h1 className="text-3xl font-black tracking-tight">Importação de Dados</h1>
           <p className="text-muted-foreground mt-1">Alimente o seu estoque em massa através de Planilhas CSV ou Notas Fiscais Eletrônicas (XML da SEFAZ).</p>
         </div>
+        <InstrucoesButton
+          titulo="Instruções e Formatos"
+          descricao="Como preparar os seus dados para o sistema."
+          label="Ver instruções e formatos"
+        >
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-green-600">
+              <FileSpreadsheet className="h-5 w-5" />
+              <h3 className="font-bold text-base text-foreground">Importação via Planilha (CSV)</h3>
+            </div>
+            <p className="text-muted-foreground leading-relaxed">
+              Ideal para cadastrar ou atualizar múltiplos produtos de uma só vez. O sistema aceita separador por <strong>vírgula (,)</strong> ou <strong>ponto e vírgula (;)</strong> — detectado automaticamente pela primeira linha do arquivo.
+            </p>
+
+            <div className="bg-muted border border-border rounded-xl p-4 overflow-x-auto">
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Exemplo de Estrutura</p>
+              <div className="font-mono text-xs whitespace-nowrap space-y-1">
+                <div className="text-primary font-bold">nome;descricao;codigoBarras;categoria;precoCusto;precoVenda;quantidade;quantidadeMinima;ncm;unidade;fornecedorNome;fornecedorCnpj;icms;ipi;pis;cofins</div>
+                <div className="text-foreground">Arroz 5kg;Saco de arroz;789123;Alimentos;22.50;28.90;50;10;12345;UN;Distribuidora Silva;11.222.333/0001-81;18;0;1.65;7.6</div>
+                <div className="text-foreground">Feijão 1kg;Feijao preto;789124;Alimentos;7.20;9.90;30;5;12346;UN;Distribuidora Silva;;;;;</div>
+              </div>
+            </div>
+            <ul className="grid grid-cols-1 gap-2 text-muted-foreground mt-2">
+              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Casas decimais com ponto (Ex: 10.50)</li>
+              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Produto existente (por código de barras ou nome) soma estoque</li>
+              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Linhas com número de colunas diferente do cabeçalho são ignoradas e reportadas</li>
+              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> fornecedorNome e/ou fornecedorCnpj — ambos opcionais e independentes entre si</li>
+              <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> icms, ipi, pis, cofins — opcionais, em % (Ex: 18 = 18%). Se a linha não trouxer nenhum, o produto fica sem imposto cadastrado (você pode adicionar depois pela tela de Produtos)</li>
+            </ul>
+
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+              <div className="flex gap-3">
+                <PackagePlus className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-blue-800 dark:text-blue-200">
+                  <p className="font-bold">Fornecedor novo? O sistema cadastra sozinho</p>
+                  <p className="opacity-90">
+                    Você não precisa mais saber o ID do fornecedor. Informe o <strong>nome</strong>, o <strong>CNPJ</strong>, ou os dois — o sistema procura um fornecedor já cadastrado com esses dados e, se não achar, <strong>cadastra automaticamente</strong>, do mesmo jeito que já faz com produtos novos. O CNPJ é a chave mais confiável (evita cadastrar o mesmo fornecedor duas vezes com nomes escritos diferente); se você só informar o nome, o sistema cria o fornecedor mesmo assim e avisa no relatório que o CNPJ precisa ser completado depois em "Fornecedores".
+                  </p>
+                  <p className="opacity-90">
+                    O CNPJ informado é conferido pelo dígito verificador (não só a quantidade de números). Se vier errado ou inventado, a linha não é rejeitada — o produto é importado do mesmo jeito, só que o fornecedor é resolvido pelo nome, e o relatório final avisa qual CNPJ foi ignorado.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-px w-full bg-border" />
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-orange-500">
+              <FileCode2 className="h-5 w-5" />
+              <h3 className="font-bold text-base text-foreground">Importação de NF-e (XML SEFAZ)</h3>
+            </div>
+            <p className="text-muted-foreground leading-relaxed">
+              Faça o upload do espelho XML fornecido pelo seu fornecedor ou baixado do portal da SEFAZ. O sistema lê a nota inteira e já salva os produtos automaticamente em uma única etapa.
+            </p>
+
+            <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
+              <div className="flex gap-3">
+                <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-orange-800 dark:text-orange-200">
+                  <p className="font-bold">O que o sistema faz com o XML?</p>
+                  <ul className="list-disc list-inside space-y-1 opacity-90">
+                    <li>Extrai o Código de Barras (cEAN), Nome e NCM de cada item.</li>
+                    <li>Identifica o fornecedor pela tag &lt;emit&gt; e cadastra automaticamente se ainda não existir.</li>
+                    <li>Atualiza a quantidade em estoque com base na nota.</li>
+                    <li>Atualiza o seu <strong>Preço de Custo</strong> para a precisão exata da compra.</li>
+                    <li>Calcula automaticamente um preço de venda sugerido (+50%) para novos produtos.</li>
+                    <li>Registra os impostos (ICMS, IPI, PIS, COFINS) de cada item.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+              <div className="flex gap-3">
+                <PackagePlus className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-blue-800 dark:text-blue-200">
+                  <p className="font-bold">Proteção contra reimportação</p>
+                  <p className="opacity-90">
+                    Cada NF-e é identificada pela sua chave de acesso. Se a mesma nota for enviada novamente, o sistema bloqueia o processamento para não duplicar o estoque.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </InstrucoesButton>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="max-w-2xl mx-auto w-full">
 
-        <Card className="lg:col-span-5 shadow-lg border-border/50 overflow-hidden">
+        <Card className="shadow-lg border-border/50 overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border/50 pb-6">
             <CardTitle className="flex items-center gap-2 text-xl">
               <Upload className="h-5 w-5 text-primary" /> Área de Upload
@@ -324,99 +411,6 @@ export default function Importacao() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-7 shadow-lg border-border/50">
-          <CardHeader className="bg-muted/30 border-b border-border/50 pb-6">
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <Info className="h-5 w-5 text-blue-500" /> Instruções e Formatos
-            </CardTitle>
-            <CardDescription>Como preparar os seus dados para o sistema.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6 space-y-8">
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-green-600">
-                <FileSpreadsheet className="h-5 w-5" />
-                <h3 className="font-bold text-lg text-foreground">Importação via Planilha (CSV)</h3>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Ideal para cadastrar ou atualizar múltiplos produtos de uma só vez. O sistema aceita separador por <strong>vírgula (,)</strong> ou <strong>ponto e vírgula (;)</strong> — detectado automaticamente pela primeira linha do arquivo.
-              </p>
-
-              <div className="bg-muted border border-border rounded-xl p-4 overflow-x-auto">
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Exemplo de Estrutura</p>
-                <div className="font-mono text-sm whitespace-nowrap space-y-1">
-                  <div className="text-primary font-bold">nome;descricao;codigoBarras;categoria;precoCusto;precoVenda;quantidade;quantidadeMinima;ncm;unidade;fornecedorNome;fornecedorCnpj;icms;ipi;pis;cofins</div>
-                  <div className="text-foreground">Arroz 5kg;Saco de arroz;789123;Alimentos;22.50;28.90;50;10;12345;UN;Distribuidora Silva;11.222.333/0001-81;18;0;1.65;7.6</div>
-                  <div className="text-foreground">Feijão 1kg;Feijao preto;789124;Alimentos;7.20;9.90;30;5;12346;UN;Distribuidora Silva;;;;;</div>
-                </div>
-              </div>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-muted-foreground mt-2">
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Casas decimais com ponto (Ex: 10.50)</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Produto existente (por código de barras ou nome) soma estoque</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> Linhas com número de colunas diferente do cabeçalho são ignoradas e reportadas</li>
-                <li className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> fornecedorNome e/ou fornecedorCnpj — ambos opcionais e independentes entre si</li>
-                <li className="flex items-center gap-2 md:col-span-2"><CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> icms, ipi, pis, cofins — opcionais, em % (Ex: 18 = 18%). Se a linha não trouxer nenhum, o produto fica sem imposto cadastrado (você pode adicionar depois pela tela de Produtos)</li>
-              </ul>
-
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-                <div className="flex gap-3">
-                  <PackagePlus className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
-                  <div className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
-                    <p className="font-bold">Fornecedor novo? O sistema cadastra sozinho</p>
-                    <p className="opacity-90">
-                      Você não precisa mais saber o ID do fornecedor. Informe o <strong>nome</strong>, o <strong>CNPJ</strong>, ou os dois — o sistema procura um fornecedor já cadastrado com esses dados e, se não achar, <strong>cadastra automaticamente</strong>, do mesmo jeito que já faz com produtos novos. O CNPJ é a chave mais confiável (evita cadastrar o mesmo fornecedor duas vezes com nomes escritos diferente); se você só informar o nome, o sistema cria o fornecedor mesmo assim e avisa no relatório que o CNPJ precisa ser completado depois em "Fornecedores".
-                    </p>
-                    <p className="opacity-90">
-                      O CNPJ informado é conferido pelo dígito verificador (não só a quantidade de números). Se vier errado ou inventado, a linha não é rejeitada — o produto é importado do mesmo jeito, só que o fornecedor é resolvido pelo nome, e o relatório final avisa qual CNPJ foi ignorado.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-px w-full bg-border" />
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-orange-500">
-                <FileCode2 className="h-5 w-5" />
-                <h3 className="font-bold text-lg text-foreground">Importação de NF-e (XML SEFAZ)</h3>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Faça o upload do espelho XML fornecido pelo seu fornecedor ou baixado do portal da SEFAZ. O sistema lê a nota inteira e já salva os produtos automaticamente em uma única etapa.
-              </p>
-
-              <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
-                <div className="flex gap-3">
-                  <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
-                  <div className="space-y-1 text-sm text-orange-800 dark:text-orange-200">
-                    <p className="font-bold">O que o sistema faz com o XML?</p>
-                    <ul className="list-disc list-inside space-y-1 opacity-90">
-                      <li>Extrai o Código de Barras (cEAN), Nome e NCM de cada item.</li>
-                      <li>Identifica o fornecedor pela tag &lt;emit&gt; e cadastra automaticamente se ainda não existir.</li>
-                      <li>Atualiza a quantidade em estoque com base na nota.</li>
-                      <li>Atualiza o seu <strong>Preço de Custo</strong> para a precisão exata da compra.</li>
-                      <li>Calcula automaticamente um preço de venda sugerido (+50%) para novos produtos.</li>
-                      <li>Registra os impostos (ICMS, IPI, PIS, COFINS) de cada item.</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-                <div className="flex gap-3">
-                  <PackagePlus className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
-                  <div className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
-                    <p className="font-bold">Proteção contra reimportação</p>
-                    <p className="opacity-90">
-                      Cada NF-e é identificada pela sua chave de acesso. Se a mesma nota for enviada novamente, o sistema bloqueia o processamento para não duplicar o estoque.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

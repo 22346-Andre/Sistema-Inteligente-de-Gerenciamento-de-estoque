@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../services/api';
+import { InstrucoesButton } from '../components/InstrucoesButton';
 
 interface EmpresaWebhook {
   id: number;
@@ -99,11 +100,25 @@ export default function Webhooks() {
 
   return (
     <div className="space-y-6 text-foreground dark:text-gray-100">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3 text-foreground dark:text-white">
-          <Webhook className="h-7 w-7 text-primary" /> Webhooks
-        </h1>
-        <p className="text-muted-foreground dark:text-gray-400">Conecte canais de venda externos (Shopee, Mercado Livre, loja própria...) pra baixar o estoque automaticamente</p>
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-3 text-foreground dark:text-white">
+            <Webhook className="h-7 w-7 text-primary" /> Webhooks
+          </h1>
+          <p className="text-muted-foreground dark:text-gray-400">Conecte canais de venda externos (Shopee, Mercado Livre, loja própria...) pra baixar o estoque automaticamente</p>
+        </div>
+        <InstrucoesButton titulo="Como os Webhooks funcionam" label="Como funciona">
+          <p>Não é preciso informar o ID da sua empresa no JSON — o sistema já sabe quem é você a partir do cabeçalho <code>X-Webhook-Secret</code>, com mais segurança.</p>
+          <p><code>codigoBarras</code> precisa bater com um produto já cadastrado no SmartStock. A requisição sempre retorna sucesso (200), mesmo se algum item da venda não puder ser processado (produto não encontrado ou estoque insuficiente) — os demais itens da mesma venda continuam sendo processados normalmente, e você recebe um alerta dentro do sistema avisando qual item falhou e por quê, pra você não precisar ficar monitorando logs.</p>
+          <div className="bg-blue-500/10 dark:bg-blue-500/15 border border-blue-500/20 dark:border-blue-500/30 text-blue-800 dark:text-blue-300 rounded-md p-3 flex gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+            <p>Cada baixa de estoque feita pelo webhook aparece no histórico de movimentações do produto, com o motivo "Venda Externa" — dá pra auditar depois igual qualquer outra venda, na tela de detalhes de cada produto.</p>
+          </div>
+          <div className="bg-muted/50 dark:bg-gray-800/50 border border-dashed border-border dark:border-gray-700 rounded-md p-3 flex gap-2">
+            <ArrowRight className="h-4 w-4 shrink-0 mt-0.5" />
+            <p>Se um item da venda externa não tiver estoque suficiente ou o produto não for encontrado, essa linha é ignorada e o resto da venda continua sendo processado normalmente — nada trava por causa de um item só.</p>
+          </div>
+        </InstrucoesButton>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -214,30 +229,10 @@ export default function Webhooks() {
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground dark:text-gray-400 mt-1.5">
-                Não é preciso informar o ID da sua empresa no JSON — o sistema já sabe quem é você a partir do cabeçalho <code>X-Webhook-Secret</code>, com mais segurança.
-              </p>
-              <p className="text-xs text-muted-foreground dark:text-gray-400 mt-1.5">
-                <code>codigoBarras</code> precisa bater com um produto já cadastrado no SmartStock. A requisição sempre retorna sucesso (200), mesmo se algum item da venda não puder ser processado (produto não encontrado ou estoque insuficiente) — os demais itens da mesma venda continuam sendo processados normalmente, e você recebe um alerta dentro do sistema avisando qual item falhou e por quê, pra você não precisar ficar monitorando logs.
-              </p>
-            </div>
-
-            <div className="bg-blue-500/10 dark:bg-blue-500/15 border border-blue-500/20 dark:border-blue-500/30 text-blue-800 dark:text-blue-300 rounded-md p-3 flex gap-2">
-              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
-              <p>Cada baixa de estoque feita pelo webhook aparece no histórico de movimentações do produto, com o motivo "Venda Externa" — dá pra auditar depois igual qualquer outra venda, na tela de detalhes de cada produto.</p>
             </div>
           </CardContent>
         </Card>
       </div>
-
-      <Card className="bg-muted/50 dark:bg-gray-800/50 border-border dark:border-gray-700 shadow-none border-dashed">
-        <CardContent className="pt-6 flex items-start gap-3 text-sm text-muted-foreground dark:text-gray-400">
-          <ArrowRight className="h-4 w-4 shrink-0 mt-0.5" />
-          <p>
-            Se um item da venda externa não tiver estoque suficiente ou o produto não for encontrado, essa linha é ignorada e o resto da venda continua sendo processado normalmente — nada trava por causa de um item só.
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 }
