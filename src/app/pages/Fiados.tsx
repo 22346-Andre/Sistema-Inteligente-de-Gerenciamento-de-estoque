@@ -62,6 +62,19 @@ export default function ContasReceber() {
   useEffect(() => {
     carregarDados();
     produtoService.listarTodos().then(setCatalogoProdutos).catch(() => {});
+
+    // 🆕 Atualiza a lista sozinho a cada 8s — assim, quando um cliente paga
+    // um Pix da Delfinance (webhook confirma em segundos), o status "PAGO"
+    // aparece na tela sem precisar apertar F5. Só roda enquanto a aba do
+    // navegador estiver visível, pra não gastar requisição à toa em segundo
+    // plano; e é limpo ao sair da tela, pra não continuar rodando à toa.
+    const intervalo = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        atualizarDadosEmSegundoPlano();
+      }
+    }, 8000);
+
+    return () => clearInterval(intervalo);
   }, []);
 
   // Filtra o catálogo pelo texto digitado; usado tanto no form de criar quanto no de editar.
@@ -83,6 +96,23 @@ export default function ContasReceber() {
       toast.error('Erro ao carregar as contas a receber.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🆕 Igual ao carregarDados, mas SEM mexer no "loading" — usado só pra
+  // atualizar sozinho em segundo plano, sem piscar um spinner de carregamento
+  // toda hora e sem interromper o que o lojista estiver fazendo na tela.
+  const atualizarDadosEmSegundoPlano = async () => {
+    try {
+      const [todas, paraCobrar] = await Promise.all([
+        fiadoService.listarCaderneta(),
+        fiadoService.listarSugestoesCobranca()
+      ]);
+      setContas(todas);
+      setSugestoes(paraCobrar);
+    } catch (e) {
+      // Silencioso de propósito: uma falha pontual de rede numa atualização
+      // automática em segundo plano não deve incomodar o usuário com um toast.
     }
   };
 
