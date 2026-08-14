@@ -261,7 +261,8 @@ export default function Dashboard() {
   useEffect(() => {
     if (acessoFinanceiroNegado || loading) return;
     setCarregandoABC(true);
-    dashboardService.obterCurvaABC(criterioABC, 90)
+    const criterioValido = criterioABC === 'faturamento' || criterioABC === 'lucratividade' ? criterioABC : undefined;
+    dashboardService.obterCurvaABC(criterioValido, 90)
       .then(setCurvaAbcItens)
       .catch(() => setCurvaAbcItens([]))
       .finally(() => setCarregandoABC(false));
@@ -373,7 +374,7 @@ export default function Dashboard() {
               <CardTitle className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 text-lg">
                 <PieChart className="h-5 w-5" /> Curva ABC
               </CardTitle>
-              {/*  Curva ABC multidimensional — o lojista escolhe o critério */}
+              {/*  Curva ABC é classificação por VALOR — Giro virou relatório próprio */}
               <select
                 value={criterioABC}
                 onChange={(e) => setCriterioABC(e.target.value as typeof criterioABC)}
@@ -382,11 +383,10 @@ export default function Dashboard() {
               >
                 <option value="faturamento">Faturamento</option>
                 <option value="lucratividade">Lucratividade</option>
-                <option value="giro">Giro (unidades)</option>
               </select>
             </div>
             <p className="text-xs text-muted-foreground dark:text-gray-400">
-              Produtos agrupados por {criterioABC === 'faturamento' ? 'faturamento' : criterioABC === 'lucratividade' ? 'lucratividade' : 'volume vendido'} nos últimos 90 dias
+              Produtos agrupados por {criterioABC === 'faturamento' ? 'faturamento' : 'lucratividade'} nos últimos 90 dias
             </p>
           </CardHeader>
           <CardContent>

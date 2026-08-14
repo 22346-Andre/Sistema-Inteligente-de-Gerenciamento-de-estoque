@@ -45,6 +45,33 @@ const BADGE_ABC: Record<string, string> = {
   C: 'bg-destructive/20 text-destructive border-destructive/20',
 };
 
+// Nível de serviço/tratamento recomendado por classe (livro Estoques e
+// Armazenagem + artigo Curva ABC, seção "Classificando os Estoques e
+// Determinando Prioridades", Dias 2002): A recebe controle rigoroso e nível
+// de serviço mais alto porque o custo do estudo minucioso é compensado; C
+// recebe tratamento simples porque não justifica controles precisos.
+const POLITICA_ABC: Record<string, string> = {
+  A: 'Classe A — nível de serviço alvo 99%. Tratamento preferencial: controle rigoroso, revisão frequente, prioridade na reposição.',
+  B: 'Classe B — nível de serviço alvo 95%. Controle intermediário entre A e C.',
+  C: 'Classe C — nível de serviço alvo 85%. Tratamento simples: não justifica controles muito precisos.',
+};
+
+// Giro de Estoque é outro indicador (velocidade, não valor) — faixas de
+// apoio visual definidas em GiroEstoqueService, sem relação com a Curva ABC.
+const BADGE_GIRO: Record<string, string> = {
+  ALTO: 'bg-green-500/20 text-green-500 border-green-500/20',
+  MEDIO: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/20',
+  BAIXO: 'bg-destructive/20 text-destructive border-destructive/20',
+};
+
+const POLITICA_GIRO: Record<string, string> = {
+  ALTO: 'Giro alto — o produto se renova rapidamente em relação ao estoque atual.',
+  MEDIO: 'Giro médio — velocidade de renovação intermediária.',
+  BAIXO: 'Giro baixo — o produto demora a girar; capital parado em potencial, vale investigar.',
+};
+
+type TipoCurva = 'abc' | 'giro';
+
 export default function Produtos() {
   const navigate = useNavigate();
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -89,8 +116,14 @@ export default function Produtos() {
 
  
   const [classificacaoAbcPorProduto, setClassificacaoAbcPorProduto] = useState<Record<number, string>>({});
-  
+
   const [criterioAbc, setCriterioAbc] = useCriterioAbc();
+
+  // Qual "curva" o usuário quer ver na coluna: Curva ABC (por valor) ou Giro
+  // de Estoque (por velocidade) — são dois relatórios distintos desde a
+  // separação do CurvaAbcService/GiroEstoqueService no backend.
+  const [tipoCurva, setTipoCurva] = useState<TipoCurva>('abc');
+  const [giroPorProduto, setGiroPorProduto] = useState<Record<number, { giro: number; classificacao: string }>>({});
 
   // Debounce da busca: espera 400ms sem digitar antes de consultar o backend,
   // pra não disparar uma requisição a cada tecla.
@@ -120,16 +153,32 @@ export default function Produtos() {
 
   
   useEffect(() => {
-    carregarClassificacaoAbc();
+    if (tipoCurva === 'abc') {
+      carregarClassificacaoAbc();
+    } else {
+      carregarGiroEstoque();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [criterioAbc]);
+  }, [criterioAbc, tipoCurva]);
 
   const carregarClassificacaoAbc = async () => {
     try {
-      const curvaAbc = await dashboardService.obterCurvaABC(criterioAbc, 90);
+      const criterio = (criterioAbc === 'giro' ? 'faturamento' : criterioAbc) as 'faturamento' | 'lucratividade' | undefined;
+      const curvaAbc = await dashboardService.obterCurvaABC(criterio, 90);
       const mapa: Record<number, string> = {};
       curvaAbc.forEach((item) => { mapa[item.produtoId] = item.classe; });
       setClassificacaoAbcPorProduto(mapa);
+    } catch (error) {
+      // silencioso — perfil CAIXA não tem acesso, tabela só não mostra os badges
+    }
+  };
+
+  const carregarGiroEstoque = async () => {
+    try {
+      const giro = await dashboardService.obterGiroEstoque(90);
+      const mapa: Record<number, { giro: number; classificacao: string }> = {};
+      giro.forEach((item) => { mapa[item.produtoId] = { giro: item.giro, classificacao: item.classificacao }; });
+      setGiroPorProduto(mapa);
     } catch (error) {
       // silencioso — perfil CAIXA não tem acesso, tabela só não mostra os badges
     }
@@ -183,7 +232,11 @@ export default function Produtos() {
   const recarregarTudo = () => {
     carregarProdutosPagina();
     carregarDadosAuxiliares();
-    carregarClassificacaoAbc();
+    if (tipoCurva === 'abc') {
+      carregarClassificacaoAbc();
+    } else {
+      carregarGiroEstoque();
+    }
   };
 
   const adicionarLinhaImpostoNovo = () => {
@@ -451,18 +504,31 @@ export default function Produtos() {
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
-            {/* 🟢 NOVO: critério da Curva ABC — mesmo valor usado no Dashboard,
-                sincronizado via useCriterioAbc (localStorage compartilhado) */}
+            {/* Qual curva ver na tabela: Curva ABC (valor) ou Giro de Estoque
+                (velocidade) — são dois relatórios separados hoje no backend */}
             <select
-              value={criterioAbc}
-              onChange={(e) => setCriterioAbc(e.target.value as typeof criterioAbc)}
-              title="Critério usado para calcular a Classe A/B/C de cada produto"
-              className="w-full sm:w-56 rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm"
+              value={tipoCurva}
+              onChange={(e) => setTipoCurva(e.target.value as TipoCurva)}
+              title="Qual indicador mostrar na coluna da tabela"
+              className="w-full sm:w-48 rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm"
             >
-              <option value="faturamento">Classe ABC por Faturamento</option>
-              <option value="lucratividade">Classe ABC por Lucratividade</option>
-              <option value="giro">Classe ABC por Giro</option>
+              <option value="abc">Curva ABC</option>
+              <option value="giro">Giro de Estoque</option>
             </select>
+            {/* Critério da Curva ABC — só faz sentido quando tipoCurva === 'abc'.
+                Mesmo valor usado no Dashboard, sincronizado via useCriterioAbc
+                (localStorage compartilhado) */}
+            {tipoCurva === 'abc' && (
+              <select
+                value={criterioAbc}
+                onChange={(e) => setCriterioAbc(e.target.value as typeof criterioAbc)}
+                title="Critério usado para calcular a Classe A/B/C de cada produto"
+                className="w-full sm:w-56 rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm"
+              >
+                <option value="faturamento">Classe ABC por Faturamento</option>
+                <option value="lucratividade">Classe ABC por Lucratividade</option>
+              </select>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -473,7 +539,7 @@ export default function Produtos() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Código de Barras</TableHead>
                   <TableHead>Categoria</TableHead>
-                  <TableHead className="text-center">Curva ABC</TableHead>
+                  <TableHead className="text-center">{tipoCurva === 'abc' ? 'Curva ABC' : 'Giro de Estoque'}</TableHead>
                   <TableHead className="text-right">Quantidade</TableHead>
                   <TableHead className="text-right">Preço Venda</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -497,12 +563,28 @@ export default function Produtos() {
                       <TableCell className="text-muted-foreground">{produto.categoria || '-'}</TableCell>
 
                       <TableCell className="text-center">
-                        {classificacaoAbcPorProduto[produto.id] && BADGE_ABC[classificacaoAbcPorProduto[produto.id]] ? (
-                          <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${BADGE_ABC[classificacaoAbcPorProduto[produto.id]]}`}>
-                            Classe {classificacaoAbcPorProduto[produto.id]}
-                          </span>
+                        {tipoCurva === 'abc' ? (
+                          classificacaoAbcPorProduto[produto.id] && BADGE_ABC[classificacaoAbcPorProduto[produto.id]] ? (
+                            <span
+                              title={POLITICA_ABC[classificacaoAbcPorProduto[produto.id]]}
+                              className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border cursor-help ${BADGE_ABC[classificacaoAbcPorProduto[produto.id]]}`}
+                            >
+                              Classe {classificacaoAbcPorProduto[produto.id]}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground italic">Sem venda no período</span>
+                          )
                         ) : (
-                          <span className="text-[10px] text-muted-foreground italic">Sem venda no período</span>
+                          giroPorProduto[produto.id] && BADGE_GIRO[giroPorProduto[produto.id].classificacao] ? (
+                            <span
+                              title={POLITICA_GIRO[giroPorProduto[produto.id].classificacao]}
+                              className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border cursor-help ${BADGE_GIRO[giroPorProduto[produto.id].classificacao]}`}
+                            >
+                              Giro {giroPorProduto[produto.id].giro}x
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground italic">Sem venda no período</span>
+                          )
                         )}
                       </TableCell>
 

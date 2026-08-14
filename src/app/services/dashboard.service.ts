@@ -30,7 +30,7 @@ export const dashboardService = {
   },
 
   
-  async obterCurvaABC(criterio: 'faturamento' | 'lucratividade' | 'giro' = 'faturamento', dias: number = 90) {
+  async obterCurvaABC(criterio: 'faturamento' | 'lucratividade' = 'faturamento', dias: number = 90) {
     const response = await api.get('/estatisticas/curva-abc', { params: { criterio, dias } });
     return response.data as {
       produtoId: number;
@@ -38,7 +38,22 @@ export const dashboardService = {
       quantidade: number;
       valorTotal: number;
       percentualAcumulado: number;
+      percentualItensAcumulado: number;
       classe: 'A' | 'B' | 'C';
+    }[];
+  },
+
+  // Giro de Estoque por produto — relatório separado da Curva ABC (mede
+  // velocidade, não valor). Ver GiroEstoqueService no backend.
+  async obterGiroEstoque(dias: number = 90) {
+    const response = await api.get('/estatisticas/giro-estoque', { params: { dias } });
+    return response.data as {
+      produtoId: number;
+      nomeProduto: string;
+      estoqueAtual: number;
+      unidadesVendidasNoPeriodo: number;
+      giro: number;
+      classificacao: 'ALTO' | 'MEDIO' | 'BAIXO';
     }[];
   },
 };
