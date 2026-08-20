@@ -30,7 +30,7 @@ export const dashboardService = {
   },
 
   
-  async obterCurvaABC(criterio: 'faturamento' | 'lucratividade' = 'faturamento', dias: number = 90) {
+  async obterCurvaABC(criterio: 'faturamento' | 'lucratividade' | 'capital-imobilizado' = 'faturamento', dias: number = 90) {
     const response = await api.get('/estatisticas/curva-abc', { params: { criterio, dias } });
     return response.data as {
       produtoId: number;

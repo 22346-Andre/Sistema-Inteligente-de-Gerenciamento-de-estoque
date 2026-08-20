@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 
-// Curva ABC é classificação por VALOR — só Faturamento e Lucratividade cabem
-// aqui. Giro de estoque virou relatório próprio (ver GiroEstoqueService no
-// backend e a tela de Giro de Estoque no frontend).
+// Curva ABC é classificação por VALOR — o seletor principal (usado no
+// Dashboard e em Produtos pra trocar QUAL classificação cada produto
+// carrega) fica só com Faturamento e Lucratividade, que são os dois
+// critérios calculados sobre um período de vendas. Capital Imobilizado
+// ("Curva ABC de Estoque") é conceitualmente diferente — não depende de
+// período, reflete o estoque parado agora — por isso não entra nesse
+// seletor compartilhado; tem card próprio e fixo no Dashboard.
 export type CriterioAbc = 'faturamento' | 'lucratividade';
 
 const CHAVE_LOCALSTORAGE = 'smartstock:criterioAbc';

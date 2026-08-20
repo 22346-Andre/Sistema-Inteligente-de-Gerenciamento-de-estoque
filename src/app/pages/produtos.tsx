@@ -163,8 +163,8 @@ export default function Produtos() {
 
   const carregarClassificacaoAbc = async () => {
     try {
-      const criterio = (criterioAbc === 'giro' ? 'faturamento' : criterioAbc) as 'faturamento' | 'lucratividade' | undefined;
-      const curvaAbc = await dashboardService.obterCurvaABC(criterio, 90);
+      const criterioCurva = criterioAbc === 'giro' ? 'faturamento' : criterioAbc;
+      const curvaAbc = await dashboardService.obterCurvaABC(criterioCurva, 90);
       const mapa: Record<number, string> = {};
       curvaAbc.forEach((item) => { mapa[item.produtoId] = item.classe; });
       setClassificacaoAbcPorProduto(mapa);
