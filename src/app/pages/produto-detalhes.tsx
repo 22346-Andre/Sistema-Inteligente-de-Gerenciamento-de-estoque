@@ -78,7 +78,10 @@ export default function ProdutoDetalhes() {
       const dadosParaEnviar = {
         ...produtoEditando,
         precoCusto: Number(produtoEditando.precoCusto) || 0,
-        precoVenda: Number(produtoEditando.precoVenda) || 0,
+        // Mesmo raciocínio do cadastro (produtos.tsx): campo vazio vira
+        // null, não 0 — senão o COALESCE do backend nunca cai pro
+        // precoCusto e zera o faturamento desse produto.
+        precoVenda: produtoEditando.precoVenda === '' || produtoEditando.precoVenda == null ? null : Number(produtoEditando.precoVenda) || 0,
         quantidadeMinima: Number(produtoEditando.estoqueMinimo || produtoEditando.quantidadeMinima) || 0,
         estoqueMinimo: Number(produtoEditando.estoqueMinimo || produtoEditando.quantidadeMinima) || 0,
         impostos: (produtoEditando.impostos || []).map((imp: any) => ({

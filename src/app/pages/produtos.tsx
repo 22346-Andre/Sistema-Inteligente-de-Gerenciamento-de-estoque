@@ -291,7 +291,11 @@ export default function Produtos() {
         quantidade: Math.max(0, Number(novoProduto.quantidade) || 0),
         quantidadeMinima: Math.max(0, Number(novoProduto.quantidadeMinima) || 0),
         precoCusto: Math.max(0, Number(novoProduto.precoCusto) || 0),
-        precoVenda: Math.max(0, Number(novoProduto.precoVenda) || 0),
+        // Campo em branco vira null, não 0 — "não defini preço de venda" é
+        // diferente de "vendo por R$0". Um precoVenda=0 real fazia o
+        // COALESCE do backend nunca cair pro precoCusto, zerando o
+        // faturamento desse produto mesmo com vendas reais no período.
+        precoVenda: novoProduto.precoVenda === '' ? null : Math.max(0, Number(novoProduto.precoVenda) || 0),
         impostos: (novoProduto.impostos || []).map((imp: any) => ({
             ...imp, aliquota: Math.max(0, Number(imp.aliquota) || 0)
         }))
