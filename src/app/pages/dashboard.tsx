@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { TrendingUp, Package, AlertCircle, DollarSign, Lock, CheckCircle, PieChart, AlertTriangle, Snowflake, Flame, Loader2, Settings2, Check, X, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Link } from 'react-router';
@@ -68,6 +69,24 @@ const formatBRL = (valor: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
  
 const CORES_ABC: Record<string, string> = { A: '#10b981', B: '#f59e0b', C: '#ef4444' };
+
+// Texto de apoio pro botão de instrução da Curva ABC — teoria por trás de
+// cada critério (Princípio de Pareto / Dias, 1995 / Martins, 2006), pra não
+// precisar de um card fixo ocupando espaço permanente na tela.
+const TEXTOS_ABC: Record<string, { titulo: string; texto: string }> = {
+  faturamento: {
+    titulo: 'Curva ABC por Faturamento',
+    texto: 'Classifica os produtos pelo valor vendido (quantidade × preço de venda) nos últimos 90 dias. Segue o Princípio de Pareto: numa curva ABC típica, cerca de 20% dos produtos (Classe A) respondem por boa parte do faturamento, enquanto a Classe C reúne muitos itens que juntos pesam pouco no total.',
+  },
+  lucratividade: {
+    titulo: 'Curva ABC por Lucratividade',
+    texto: 'Mesma lógica da curva por Faturamento, mas o valor considerado é a margem (preço de venda menos custo), não o faturamento bruto. Ajuda a enxergar produtos que vendem bastante mas dão pouco lucro, e o contrário: itens de menor giro que sustentam boa margem.',
+  },
+  'capital-imobilizado': {
+    titulo: 'Curva ABC de Estoque (Capital Imobilizado)',
+    texto: 'Diferente das outras duas, não olha pra vendas de um período: olha pro estoque parado agora (quantidade em mãos × custo unitário). Responde "onde está o meu dinheiro parado", não "o que mais vende" — útil pra decidir onde apertar o controle de reposição e reduzir capital parado sem faltar produto.',
+  },
+};
 const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
  
 export default function Dashboard() {
@@ -261,10 +280,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (acessoFinanceiroNegado || loading) return;
     setCarregandoABC(true);
-    // A API da curva ABC não oferece o critério "giro"; use faturamento
-    // como fallback para manter o seletor compatível com os critérios da UI.
-    const criterioApi = criterioABC === 'giro' ? 'faturamento' : criterioABC;
-    dashboardService.obterCurvaABC(criterioApi, 90)
+    dashboardService.obterCurvaABC(criterioABC, 90)
       .then(setCurvaAbcItens)
       .catch(() => setCurvaAbcItens([]))
       .finally(() => setCarregandoABC(false));
@@ -289,43 +305,6 @@ export default function Dashboard() {
       cor: CORES_ABC[letra],
     }));
   }, [curvaAbcItens]);
-
-  // Curva ABC de Estoque (capital imobilizado) — card fixo, separado do
-  // seletor Faturamento/Lucratividade acima: não é mais uma opção que troca
-  // o que aparece no mesmo gráfico, é uma classificação conceitualmente
-  // diferente (estoque parado agora, não vendas de um período), então tem
-  // card próprio, sempre visível.
-  const [curvaEstoqueItens, setCurvaEstoqueItens] = useState<Awaited<ReturnType<typeof dashboardService.obterCurvaABC>>>([]);
-  const [carregandoCurvaEstoque, setCarregandoCurvaEstoque] = useState(false);
-
-  useEffect(() => {
-    if (acessoFinanceiroNegado || loading) return;
-    setCarregandoCurvaEstoque(true);
-    dashboardService.obterCurvaABC('capital-imobilizado', 90)
-      .then(setCurvaEstoqueItens)
-      .catch(() => setCurvaEstoqueItens([]))
-      .finally(() => setCarregandoCurvaEstoque(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acessoFinanceiroNegado, loading]);
-
-  const dadosGraficoEstoque = useMemo(() => {
-    if (curvaEstoqueItens.length === 0) return [];
-    const contagem: Record<'A' | 'B' | 'C', number> = { A: 0, B: 0, C: 0 };
-
-    curvaEstoqueItens.forEach((item) => {
-      if (contagem[item.classe] !== undefined) contagem[item.classe]++;
-    });
-
-    const totalGeral = contagem.A + contagem.B + contagem.C;
-    if (totalGeral === 0) return [];
-
-    return (['A', 'B', 'C'] as const).map((letra) => ({
-      categoria: `Classe ${letra}`,
-      porcentagem: Math.round((contagem[letra] / totalGeral) * 100),
-      produtos: contagem[letra],
-      cor: CORES_ABC[letra],
-    }));
-  }, [curvaEstoqueItens]);
  
   if (loading) {
     return (
@@ -412,8 +391,35 @@ export default function Dashboard() {
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 text-lg">
                 <PieChart className="h-5 w-5" /> Curva ABC
+                {/* Botão de instrução clicável — substitui o card fixo de
+                    explicação, que ficava sempre visível ocupando espaço */}
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      title="O que é a Curva ABC?"
+                      className="text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors"
+                    >
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>{TEXTOS_ABC[criterioABC].titulo}</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-muted-foreground dark:text-gray-400">{TEXTOS_ABC[criterioABC].texto}</p>
+                    <ul className="space-y-1.5 text-sm pt-1">
+                      <li className="flex gap-2"><span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">Classe A</span> poucos itens, mas concentram a maior parte do valor — prioridade de gestão.</li>
+                      <li className="flex gap-2"><span className="font-bold text-yellow-600 dark:text-yellow-400 shrink-0">Classe B</span> participação intermediária.</li>
+                      <li className="flex gap-2"><span className="font-bold text-red-600 dark:text-red-400 shrink-0">Classe C</span> muitos itens, mas cada um pesa pouco no total.</li>
+                    </ul>
+                  </DialogContent>
+                </Dialog>
               </CardTitle>
-              {/*  Curva ABC é classificação por VALOR — Giro virou relatório próprio */}
+              {/* Um seletor só, com os três critérios — Faturamento e
+                  Lucratividade olham pra vendas de um período, Capital
+                  Imobilizado olha pro estoque parado agora. Giro de estoque
+                  virou relatório próprio (ver GiroEstoqueService). */}
               <select
                 value={criterioABC}
                 onChange={(e) => setCriterioABC(e.target.value as typeof criterioABC)}
@@ -422,10 +428,13 @@ export default function Dashboard() {
               >
                 <option value="faturamento">Faturamento</option>
                 <option value="lucratividade">Lucratividade</option>
+                <option value="capital-imobilizado">Capital Imobilizado</option>
               </select>
             </div>
             <p className="text-xs text-muted-foreground dark:text-gray-400">
-              Produtos agrupados por {criterioABC === 'faturamento' ? 'faturamento' : 'lucratividade'} nos últimos 90 dias
+              {criterioABC === 'capital-imobilizado'
+                ? 'Produtos agrupados pelo valor parado em estoque hoje (quantidade × custo)'
+                : `Produtos agrupados por ${criterioABC === 'faturamento' ? 'faturamento' : 'lucratividade'} nos últimos 90 dias`}
             </p>
           </CardHeader>
           <CardContent>
@@ -533,155 +542,12 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Curva ABC de Estoque (Exemplo 2 do artigo: classificação por capital
-          imobilizado, não por vendas) — card de dados + card de instrução
-          lado a lado, sem mexer no seletor Faturamento/Lucratividade acima. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="shadow-md border-t-4 border-t-emerald-500 dark:bg-gray-800 dark:border-gray-700">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-emerald-900 dark:text-emerald-200 text-lg">
-              <PieChart className="h-5 w-5" /> Curva ABC de Estoque
-            </CardTitle>
-            <p className="text-xs text-muted-foreground dark:text-gray-400">
-              Produtos agrupados pelo valor parado em estoque hoje (quantidade × custo) — não depende de período
-            </p>
-          </CardHeader>
-          <CardContent>
-            {acessoFinanceiroNegado ? (
-              <div className="flex items-center justify-center h-[220px] text-gray-400 bg-muted dark:bg-gray-900 rounded">Acesso Restrito</div>
-            ) : carregandoCurvaEstoque ? (
-              <div className="flex items-center justify-center h-[220px] text-gray-400 bg-muted dark:bg-gray-900 rounded">Calculando...</div>
-            ) : dadosGraficoEstoque.length > 0 ? (
-              <>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={dadosGraficoEstoque}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="categoria" fontSize={12} stroke="var(--muted-foreground)" />
-                    <YAxis fontSize={12} stroke="var(--muted-foreground)" />
-                    <Tooltip
-                      formatter={(value: number, _name, item: any) => [
-                        `${value}% do capital imobilizado · ${item?.payload?.produtos ?? 0} produto(s)`,
-                        'Participação',
-                      ]}
-                      contentStyle={{ backgroundColor: 'var(--popover)', borderColor: 'var(--border)', color: 'var(--popover-foreground)' }}
-                    />
-                    <Bar dataKey="porcentagem" radius={[4, 4, 0, 0]}>
-                      {dadosGraficoEstoque.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.cor} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-                <div className="flex items-center justify-center gap-4 mt-2">
-                  {dadosGraficoEstoque.map((item) => (
-                    <span key={item.categoria} className="flex items-center gap-1 text-xs text-muted-foreground dark:text-gray-400">
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.cor }} />
-                      {item.categoria}: {item.produtos}
-                    </span>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center justify-center h-[220px] text-gray-400 bg-muted dark:bg-gray-900 rounded">Sem dados</div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Card de instrução — explica o que é esse indicador e quando usar,
-            pra quem for ler o dashboard não precisar perguntar pro time de TI */}
-        <Card className="shadow-md border-t-4 border-t-slate-400 dark:bg-gray-800 dark:border-gray-700">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300 text-lg">
-              <Info className="h-5 w-5" /> O que é a Curva ABC de Estoque?
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground dark:text-gray-400">
-            <p>
-              Diferente da Curva ABC por Faturamento ou Lucratividade (que olham pra o que foi vendido num período),
-              essa curva olha pro que está parado no estoque agora: quantidade em mãos multiplicada pelo custo de
-              cada produto.
-            </p>
-            <p>
-              Ela responde uma pergunta diferente — não "o que mais vende", mas "onde está o meu capital parado".
-              Uma empresa do setor metalúrgico usou essa mesma lógica e descobriu que apenas 20% dos itens
-              armazenados concentravam 70% do capital imobilizado; com controle mais rígido de reposição só nesses
-              itens, reduziu o valor total do estoque sem faltar produto na produção.
-            </p>
-            <ul className="space-y-1.5 pt-1">
-              <li className="flex gap-2"><span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">Classe A</span> — poucos itens, mas concentram a maior parte do dinheiro parado. Priorize aqui na hora de negociar prazos com fornecedor ou repensar quantidade de compra.</li>
-              <li className="flex gap-2"><span className="font-bold text-yellow-600 dark:text-yellow-400 shrink-0">Classe B</span> — participação intermediária no capital parado.</li>
-              <li className="flex gap-2"><span className="font-bold text-red-600 dark:text-red-400 shrink-0">Classe C</span> — muitos itens, mas cada um pesa pouco no total imobilizado.</li>
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabela ranqueada — "onde está o meu dinheiro, em quais produtos".
-          Reaproveita curvaEstoqueItens (já vem ordenado por valor desc do
-          backend) e mostra produto a produto, não só o agregado por classe. */}
-      {!acessoFinanceiroNegado && (
-        <Card className="shadow-md border-t-4 border-t-emerald-500 dark:bg-gray-800 dark:border-gray-700">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-emerald-900 dark:text-emerald-200 text-lg">
-              <DollarSign className="h-5 w-5" /> Onde está o meu dinheiro
-            </CardTitle>
-            <p className="text-xs text-muted-foreground dark:text-gray-400">
-              Produtos ordenados do que mais pesa no capital imobilizado pro que menos pesa
-            </p>
-          </CardHeader>
-          <CardContent>
-            {carregandoCurvaEstoque ? (
-              <div className="flex items-center justify-center h-[160px] text-gray-400 bg-muted dark:bg-gray-900 rounded">Calculando...</div>
-            ) : curvaEstoqueItens.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-muted-foreground dark:text-gray-400">
-                      <th className="py-2 pr-3 font-medium">Produto</th>
-                      <th className="py-2 pr-3 font-medium text-right">Qtd. em estoque</th>
-                      <th className="py-2 pr-3 font-medium text-right">Valor imobilizado</th>
-                      <th className="py-2 pr-3 font-medium text-right">% acumulado</th>
-                      <th className="py-2 pl-3 font-medium text-center">Classe</th>
-                    </tr>
-                  </thead>
-                  <tbody className="max-h-[320px]">
-                    {curvaEstoqueItens.map((item) => (
-                      <tr key={item.produtoId} className="border-b border-border/50 last:border-0">
-                        <td className="py-2 pr-3 font-medium text-foreground dark:text-white truncate max-w-[220px]">{item.nomeProduto}</td>
-                        <td className="py-2 pr-3 text-right text-muted-foreground dark:text-gray-400">{item.quantidade}</td>
-                        <td className="py-2 pr-3 text-right font-bold text-foreground dark:text-white">{formatBRL(item.valorTotal)}</td>
-                        <td className="py-2 pr-3 text-right text-muted-foreground dark:text-gray-400">{item.percentualAcumulado}%</td>
-                        <td className="py-2 pl-3 text-center">
-                          <span
-                            className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border"
-                            style={{
-                              backgroundColor: `${CORES_ABC[item.classe]}20`,
-                              color: CORES_ABC[item.classe],
-                              borderColor: `${CORES_ABC[item.classe]}20`,
-                            }}
-                          >
-                            {item.classe}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-[160px] text-gray-400 bg-muted dark:bg-gray-900 rounded">Sem dados</div>
-            )}
-          </CardContent>
-        </Card>
-      )}
- 
-     
       {!acessoEstoqueMortoNegado && (
         <Card className="shadow-md border-t-4 border-t-cyan-500 dark:bg-gray-800 dark:border-gray-700">
           <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2 text-cyan-900 dark:text-cyan-200 text-lg">
-                <Snowflake className="h-5 w-5" /> Dinheiro Congelado
+                <Snowflake className="h-5 w-5" /> Capital Parado em Estoque
               </CardTitle>
  
               {!editandoDias ? (

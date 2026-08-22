@@ -163,8 +163,7 @@ export default function Produtos() {
 
   const carregarClassificacaoAbc = async () => {
     try {
-      const criterioCurva = criterioAbc === 'giro' ? 'faturamento' : criterioAbc;
-      const curvaAbc = await dashboardService.obterCurvaABC(criterioCurva, 90);
+      const curvaAbc = await dashboardService.obterCurvaABC(criterioAbc, 90);
       const mapa: Record<number, string> = {};
       curvaAbc.forEach((item) => { mapa[item.produtoId] = item.classe; });
       setClassificacaoAbcPorProduto(mapa);
@@ -238,6 +237,29 @@ export default function Produtos() {
       carregarGiroEstoque();
     }
   };
+
+  // "Onde está o meu dinheiro" — em vez de uma tabela extra sempre visível
+  // (como chegou a ficar no Dashboard), aqui é só um filtro por classe que o
+  // usuário liga quando quiser, sobre a mesma tabela de produtos que já existe.
+  const [filtroClasseAtivo, setFiltroClasseAtivo] = useState(false);
+  const [filtroClasse, setFiltroClasse] = useState('');
+
+  // Toda vez que a curva ou o critério mudam, as classes possíveis podem
+  // mudar (A/B/C pra ABC, ALTO/MEDIO/BAIXO pra Giro) — zera o filtro pra não
+  // ficar um valor que não existe mais selecionado.
+  useEffect(() => {
+    setFiltroClasse('');
+  }, [tipoCurva, criterioAbc]);
+
+  const produtosFiltradosPorClasse = useMemo(() => {
+    if (!filtroClasseAtivo || !filtroClasse) return produtos;
+    return produtos.filter((produto) => {
+      const classe = tipoCurva === 'abc'
+        ? classificacaoAbcPorProduto[produto.id]
+        : giroPorProduto[produto.id]?.classificacao;
+      return classe === filtroClasse;
+    });
+  }, [produtos, filtroClasseAtivo, filtroClasse, tipoCurva, classificacaoAbcPorProduto, giroPorProduto]);
 
   const adicionarLinhaImpostoNovo = () => {
     setNovoProduto({
@@ -527,9 +549,50 @@ export default function Produtos() {
               >
                 <option value="faturamento">Classe ABC por Faturamento</option>
                 <option value="lucratividade">Classe ABC por Lucratividade</option>
+                <option value="capital-imobilizado">Classe ABC por Capital Imobilizado</option>
+              </select>
+            )}
+            {/* "Onde está o meu dinheiro" — botão que liga/desliga o filtro
+                por classe, em vez de uma tabela extra sempre visível ocupando
+                espaço no Dashboard */}
+            <Button
+              type="button"
+              variant={filtroClasseAtivo ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFiltroClasseAtivo((v) => !v)}
+              className="shrink-0"
+            >
+              <Wallet className="h-4 w-4 mr-1.5" /> Onde está meu dinheiro
+            </Button>
+            {filtroClasseAtivo && (
+              <select
+                value={filtroClasse}
+                onChange={(e) => setFiltroClasse(e.target.value)}
+                title="Filtrar a tabela por classe"
+                className="w-full sm:w-40 rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm"
+              >
+                <option value="">Todas as classes</option>
+                {tipoCurva === 'abc' ? (
+                  <>
+                    <option value="A">Classe A</option>
+                    <option value="B">Classe B</option>
+                    <option value="C">Classe C</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="ALTO">Giro alto</option>
+                    <option value="MEDIO">Giro médio</option>
+                    <option value="BAIXO">Giro baixo</option>
+                  </>
+                )}
               </select>
             )}
           </div>
+          {filtroClasseAtivo && filtroClasse && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Filtro aplicado só na página atual da tabela — use a busca ou passe de página pra ver os demais.
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -546,7 +609,7 @@ export default function Produtos() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {produtos.map((produto) => {
+                {produtosFiltradosPorClasse.map((produto) => {
                   const estoqueMinimo = getEstoqueMinimo(produto);
                   const estoqueBaixo = (produto.quantidade || 0) < estoqueMinimo;
                   return (
@@ -617,10 +680,10 @@ export default function Produtos() {
               Carregando produtos...
             </div>
           )}
-          {produtos.length === 0 && !loading && !carregandoProdutos && (
+          {produtosFiltradosPorClasse.length === 0 && !loading && !carregandoProdutos && (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <PackageSearch className="h-10 w-10 mb-2 opacity-50" />
-              <p>Nenhum produto encontrado.</p>
+              <p>{filtroClasseAtivo && filtroClasse ? 'Nenhum produto nessa classe, nesta página.' : 'Nenhum produto encontrado.'}</p>
             </div>
           )}
 

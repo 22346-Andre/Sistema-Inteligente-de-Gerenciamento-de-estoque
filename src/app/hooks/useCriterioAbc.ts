@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react';
 
-export type CriterioAbc = 'faturamento' | 'lucratividade' | 'giro';
+// Curva ABC é classificação por VALOR — os três critérios do mesmo seletor
+// (usado no Dashboard e em Produtos): Faturamento e Lucratividade olham pra
+// vendas de um período; Capital Imobilizado ("Curva ABC de Estoque") olha
+// pro estoque parado agora (quantidade × custo), sem depender de período.
+// Giro de Estoque é um indicador diferente (velocidade, não valor) e tem
+// tipo/estado próprio (TipoCurva em produtos.tsx) — não faz parte deste hook.
+export type CriterioAbc = 'faturamento' | 'lucratividade' | 'capital-imobilizado';
 
 const CHAVE_LOCALSTORAGE = 'smartstock:criterioAbc';
 
+const EH_CRITERIO_VALIDO = (valor: string | null): valor is CriterioAbc =>
+  valor === 'faturamento' || valor === 'lucratividade' || valor === 'capital-imobilizado';
 
 export function useCriterioAbc(): [CriterioAbc, (novo: CriterioAbc) => void] {
   const [criterio, setCriterioState] = useState<CriterioAbc>(() => {
     const salvo = localStorage.getItem(CHAVE_LOCALSTORAGE);
-    return (salvo === 'faturamento' || salvo === 'lucratividade' || salvo === 'giro') ? salvo : 'faturamento';
+    return EH_CRITERIO_VALIDO(salvo) ? salvo : 'faturamento';
   });
 
   const setCriterio = (novo: CriterioAbc) => {
@@ -20,11 +28,8 @@ export function useCriterioAbc(): [CriterioAbc, (novo: CriterioAbc) => void] {
   // sincroniza também (cobre o caso de duas abas abertas ao mesmo tempo).
   useEffect(() => {
     const aoMudarStorage = (e: StorageEvent) => {
-      if (e.key === CHAVE_LOCALSTORAGE && e.newValue) {
-        const valor = e.newValue as CriterioAbc;
-        if (valor === 'faturamento' || valor === 'lucratividade' || valor === 'giro') {
-          setCriterioState(valor);
-        }
+      if (e.key === CHAVE_LOCALSTORAGE && EH_CRITERIO_VALIDO(e.newValue)) {
+        setCriterioState(e.newValue);
       }
     };
     window.addEventListener('storage', aoMudarStorage);
