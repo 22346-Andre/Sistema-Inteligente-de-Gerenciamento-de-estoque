@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { TrendingUp, Package, AlertCircle, DollarSign, Lock, CheckCircle, PieChart, AlertTriangle, Snowflake, Flame, Loader2, Settings2, Check, X, Info } from 'lucide-react';
+import { TrendingUp, Package, AlertCircle, DollarSign, Lock, CheckCircle, PieChart, AlertTriangle, Snowflake, Flame, Loader2, Settings2, Check, X, Info, Scale } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Link } from 'react-router';
 import { Button } from '../components/ui/button';
@@ -305,6 +305,30 @@ export default function Dashboard() {
       cor: CORES_ABC[letra],
     }));
   }, [curvaAbcItens]);
+
+  // Matriz Faturamento × Lucratividade ("Produto Engana-Bobo") — carrega à
+  // parte, não depende do criterioABC selecionado acima (sempre cruza os
+  // dois critérios de valor, faturamento e lucratividade, juntos).
+  const [matrizAbcItens, setMatrizAbcItens] = useState<Awaited<ReturnType<typeof dashboardService.obterMatrizAbc>>>([]);
+  const [carregandoMatriz, setCarregandoMatriz] = useState(false);
+
+  useEffect(() => {
+    if (acessoFinanceiroNegado || loading) return;
+    setCarregandoMatriz(true);
+    dashboardService.obterMatrizAbc(90)
+      .then(setMatrizAbcItens)
+      .catch(() => setMatrizAbcItens([]))
+      .finally(() => setCarregandoMatriz(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acessoFinanceiroNegado, loading]);
+
+  // Só os paradoxos de verdade (A/C ou C/A) interessam nesse card — "ALINHADO"
+  // e "MISTO" são o comportamento normal da maioria do catálogo e não
+  // precisam de destaque nenhum.
+  const produtosParadoxais = useMemo(
+    () => matrizAbcItens.filter((item) => item.quadrante === 'CAMPEAO_DE_VENDAS' || item.quadrante === 'MOTOR_DE_LUCRO'),
+    [matrizAbcItens]
+  );
  
   if (loading) {
     return (
@@ -541,6 +565,80 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {!acessoFinanceiroNegado && produtosParadoxais.length > 0 && (
+        <Card className="shadow-md border-t-4 border-t-violet-500 dark:bg-gray-800 dark:border-gray-700">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-violet-900 dark:text-violet-200 text-lg">
+                <Scale className="h-5 w-5" /> Faturamento × Lucratividade
+                {/* Botão de instrução clicável — mesmo padrão do card Curva ABC */}
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      title="O que é isso?"
+                      className="text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors"
+                    >
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>O paradoxo do produto "engana-bobo"</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-muted-foreground dark:text-gray-400">
+                      Faturamento e Lucratividade medem coisas diferentes: quanto entra bruto e quanto sobra de
+                      margem. Às vezes um produto tem classificação oposta nas duas — e isso costuma passar
+                      despercebido quando você só olha uma curva de cada vez.
+                    </p>
+                    <ul className="space-y-2 text-sm pt-1">
+                      <li className="flex gap-2">
+                        <span className="font-bold text-blue-600 dark:text-blue-400 shrink-0">Campeão de Vendas</span>
+                        vende muito (Classe A em Faturamento), mas a margem é ruim (Classe C em Lucratividade) —
+                        ajuda a pagar as contas do dia a dia, não deixa a empresa rica.
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">Motor de Lucro</span>
+                        vende pouco (Classe C em Faturamento), mas cada venda deixa margem alta (Classe A em
+                        Lucratividade) — é onde a empresa realmente ganha dinheiro pra expandir.
+                      </li>
+                    </ul>
+                  </DialogContent>
+                </Dialog>
+              </CardTitle>
+            </div>
+            <p className="text-xs text-muted-foreground dark:text-gray-400">
+              Produtos com classificação oposta nas duas curvas, últimos 90 dias
+            </p>
+          </CardHeader>
+          <CardContent>
+            {carregandoMatriz ? (
+              <div className="flex items-center justify-center h-[100px] text-gray-400">Calculando...</div>
+            ) : (
+              <div className="space-y-2 max-h-[260px] overflow-y-auto pr-2 custom-scrollbar">
+                {produtosParadoxais.map((item) => (
+                  <div
+                    key={item.produtoId}
+                    className="flex items-center justify-between text-sm bg-violet-50 dark:bg-gray-700/50 border border-violet-200 dark:border-gray-600 rounded-lg px-3 py-2"
+                  >
+                    <p className="font-semibold text-violet-900 dark:text-violet-100 truncate pr-2">{item.nomeProduto}</p>
+                    <span
+                      className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
+                        item.quadrante === 'CAMPEAO_DE_VENDAS'
+                          ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                          : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                      }`}
+                    >
+                      {item.quadrante === 'CAMPEAO_DE_VENDAS' ? 'Campeão de Vendas' : 'Motor de Lucro'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {!acessoEstoqueMortoNegado && (
         <Card className="shadow-md border-t-4 border-t-cyan-500 dark:bg-gray-800 dark:border-gray-700">

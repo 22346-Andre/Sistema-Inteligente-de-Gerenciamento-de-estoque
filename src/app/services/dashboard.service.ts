@@ -56,4 +56,17 @@ export const dashboardService = {
       classificacao: 'ALTO' | 'MEDIO' | 'BAIXO';
     }[];
   },
+
+  // Matriz Faturamento × Lucratividade ("Produto Engana-Bobo") — cruza as
+  // duas curvas de valor no mesmo produto. Ver CurvaAbcService no backend.
+  async obterMatrizAbc(dias: number = 90) {
+    const response = await api.get('/estatisticas/matriz-abc', { params: { dias } });
+    return response.data as {
+      produtoId: number;
+      nomeProduto: string;
+      classeFaturamento: 'A' | 'B' | 'C';
+      classeLucratividade: 'A' | 'B' | 'C';
+      quadrante: 'ALINHADO' | 'CAMPEAO_DE_VENDAS' | 'MOTOR_DE_LUCRO' | 'MISTO';
+    }[];
+  },
 };
