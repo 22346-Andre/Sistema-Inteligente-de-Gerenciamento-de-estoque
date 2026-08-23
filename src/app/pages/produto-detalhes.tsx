@@ -339,7 +339,24 @@ export default function ProdutoDetalhes() {
                       }}
                   />
               </div>
-              <div className="space-y-2"></div>
+              <div className="space-y-2">
+                <Label>Unidade</Label>
+                <select
+                  className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
+                  value={produtoEditando.unidade || 'UN'}
+                  onChange={e => setProdutoEditando({ ...produtoEditando, unidade: e.target.value })}
+                >
+                  <option value="UN">UN (unidade)</option>
+                  <option value="KG">KG (quilograma)</option>
+                  <option value="G">G (grama)</option>
+                  <option value="L">L (litro)</option>
+                  <option value="ML">ML (mililitro)</option>
+                  <option value="CX">CX (caixa)</option>
+                  <option value="PCT">PCT (pacote)</option>
+                  <option value="DZ">DZ (dúzia)</option>
+                  <option value="M">M (metro)</option>
+                </select>
+              </div>
 
               <div className="space-y-2"><Label>NCM</Label><Input className="bg-background" value={produtoEditando.ncm || ''} onChange={e => setProdutoEditando({...produtoEditando, ncm: e.target.value})} /></div>
               <div className="space-y-2"><Label>CFOP</Label><Input className="bg-background" value={produtoEditando.cfop || ''} onChange={e => setProdutoEditando({...produtoEditando, cfop: e.target.value})} /></div>

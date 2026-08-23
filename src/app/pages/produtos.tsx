@@ -95,6 +95,7 @@ export default function Produtos() {
     ncm: '',
     cfop: '',
     finalidadeEstoque: 'REVENDA',
+    unidade: 'UN',
     impostos: [] as Imposto[]
   };
 
@@ -399,10 +400,24 @@ export default function Produtos() {
 
               <div className="bg-muted p-4 rounded-lg space-y-4">
                 <h3 className="font-semibold text-foreground border-b border-border pb-2">Estoque e Preços</h3>
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                   <div className="space-y-2">
                       <Label>Qtd Inicial</Label>
                       <Input className="bg-background" type="number" min="0" onKeyDown={preventInvalidKeys} value={novoProduto.quantidade} onChange={e => handleNumberInput(e, setNovoProduto, 'quantidade')} />
+                  </div>
+                  <div className="space-y-2">
+                      <Label>Unidade</Label>
+                      <select className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground" value={novoProduto.unidade} onChange={e => setNovoProduto({ ...novoProduto, unidade: e.target.value })}>
+                        <option value="UN">UN (unidade)</option>
+                        <option value="KG">KG (quilograma)</option>
+                        <option value="G">G (grama)</option>
+                        <option value="L">L (litro)</option>
+                        <option value="ML">ML (mililitro)</option>
+                        <option value="CX">CX (caixa)</option>
+                        <option value="PCT">PCT (pacote)</option>
+                        <option value="DZ">DZ (dúzia)</option>
+                        <option value="M">M (metro)</option>
+                      </select>
                   </div>
                   <div className="space-y-2">
                       <Label>Qtd Mínima</Label>

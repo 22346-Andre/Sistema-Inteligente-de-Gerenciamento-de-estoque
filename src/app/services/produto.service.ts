@@ -20,6 +20,7 @@ export interface Produto {
   fornecedorId: number;
   fornecedorNome?: string;
   classificacaoABC?: string;
+  unidade?: string;
 
   ncm?: string;
   cfop?: string;
@@ -36,6 +37,7 @@ export interface ProdutoDTO {
   precoVenda: number;
   quantidadeMinima: number;
   fornecedorId: number;
+  unidade?: string;
 
   ncm?: string;
   cfop?: string;
