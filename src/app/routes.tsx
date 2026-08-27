@@ -16,6 +16,7 @@ import SugestoesCompra from './pages/sugestoes-compra';
 import Relatorios from './pages/relatorios';
 import Perfil from './pages/Perfil';
 import Fiados from './pages/Fiados';
+import Despesas from './pages/Despesas';
 
 
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -103,7 +104,8 @@ export const router = createBrowserRouter([
           },
 
           
-          { path: 'fiados', element: <Fiados /> }
+          { path: 'fiados', element: <Fiados /> },
+          { path: 'despesas', element: <Despesas /> }
         ]
       }
     ]

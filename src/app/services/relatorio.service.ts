@@ -26,6 +26,18 @@ export const relatorioService = {
     this.downloadArquivo(response.data, 'inventario_fiscal.pdf');
   },
 
+  // DRE simplificado: Receita Bruta - CMV = Lucro Bruto - Perdas = Resultado
+  // Aproximado. Não é um DRE contábil oficial completo (sem despesas
+  // administrativas/financeiras/tributos, que o sistema não rastreia) — o
+  // próprio PDF deixa isso explícito no rodapé.
+  async downloadContabilPdf(dataInicio?: string, dataFim?: string): Promise<void> {
+    const response = await api.get('/relatorios/contabil/pdf', {
+      params: { dataInicio, dataFim },
+      responseType: 'blob',
+    });
+    this.downloadArquivo(response.data, 'relatorio_contabil.pdf');
+  },
+
   async downloadPerdasPdf(dataInicio?: string, dataFim?: string): Promise<void> {
     const response = await api.get('/relatorios/perdas/pdf', {
       params: { dataInicio, dataFim },

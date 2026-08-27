@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   FileText, Download, BarChart3, Package, AlertTriangle, Calendar,
-  TrendingUp, Layers, Eye, EyeOff, Boxes, ListOrdered, PieChart as PieChartIcon
+  TrendingUp, Layers, Eye, EyeOff, Boxes, ListOrdered, PieChart as PieChartIcon, Calculator
 } from 'lucide-react';
 import { relatorioService } from '../services/relatorio.service';
 import { toast } from 'sonner';
@@ -90,12 +90,12 @@ export default function Relatorios() {
     },
     {
       id: '3',
-      titulo: 'Inventário Fiscal',
-      descricao: 'Relatório completo para prestação de contas e auditorias fiscais.',
-      icone: BarChart3,
-      tipo: 'inventario',
+      titulo: 'Relatório Contábil (DRE Simplificado)',
+      descricao: 'Receita, CMV, lucro bruto e perdas do período — visão gerencial de resultado.',
+      icone: Calculator,
+      tipo: 'contabil',
       cor: 'purple',
-      metodo: (inicio, fim) => relatorioService.downloadInventarioPdf(inicio, fim)
+      metodo: (inicio, fim) => relatorioService.downloadContabilPdf(inicio, fim)
     },
     {
       id: '4',
@@ -123,6 +123,15 @@ export default function Relatorios() {
       tipo: 'categoria',
       cor: 'cyan',
       metodo: (inicio, fim) => relatorioService.downloadEstoqueCategoriaPdf(inicio, fim)
+    },
+    {
+      id: '7',
+      titulo: 'Inventário Fiscal',
+      descricao: 'Relatório completo para prestação de contas e auditorias fiscais (Bloco H/SPED).',
+      icone: BarChart3,
+      tipo: 'inventario',
+      cor: 'indigo',
+      metodo: (inicio, fim) => relatorioService.downloadInventarioPdf(inicio, fim)
     }
   ];
 
