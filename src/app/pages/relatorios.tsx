@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
   FileText, Download, BarChart3, Package, AlertTriangle, Calendar,
-  TrendingUp, Layers, Eye, EyeOff, Boxes, ListOrdered, PieChart as PieChartIcon, Calculator
+  TrendingUp, Layers, Eye, EyeOff, Boxes, ListOrdered, PieChart as PieChartIcon, Calculator, Landmark
 } from 'lucide-react';
 import { relatorioService } from '../services/relatorio.service';
 import { toast } from 'sonner';
@@ -19,7 +19,7 @@ interface Relatorio {
   descricao: string;
   icone: any;
   tipo: string;
-  cor: 'blue' | 'purple' | 'red' | 'green' | 'orange' | 'cyan';
+  cor: 'blue' | 'purple' | 'red' | 'green' | 'orange' | 'cyan' | 'emerald' | 'indigo';
   metodo: (inicio?: string, fim?: string) => Promise<void>;
 }
 
@@ -91,11 +91,29 @@ export default function Relatorios() {
     {
       id: '3',
       titulo: 'Relatório Contábil (DRE Simplificado)',
-      descricao: 'Receita, CMV, lucro bruto e perdas do período — visão gerencial de resultado.',
+      descricao: 'Receita, CMV, despesas, perdas e lucro do período — visão gerencial de resultado.',
       icone: Calculator,
       tipo: 'contabil',
       cor: 'purple',
       metodo: (inicio, fim) => relatorioService.downloadContabilPdf(inicio, fim)
+    },
+    {
+      id: '8',
+      titulo: 'Fluxo de Caixa (DFC Simplificada)',
+      descricao: 'Saldo inicial, entradas e saídas do período por origem, e saldo final.',
+      icone: Landmark,
+      tipo: 'fluxo-caixa',
+      cor: 'emerald',
+      metodo: (inicio, fim) => relatorioService.downloadFluxoCaixaPdf(inicio, fim)
+    },
+    {
+      id: '9',
+      titulo: 'Balanço Patrimonial Simplificado',
+      descricao: 'Ativo, Passivo e Patrimônio Líquido na data de hoje — não usa filtro de período.',
+      icone: BarChart3,
+      tipo: 'balanco-patrimonial',
+      cor: 'blue',
+      metodo: () => relatorioService.downloadBalancoPatrimonialPdf()
     },
     {
       id: '4',
@@ -222,7 +240,9 @@ export default function Relatorios() {
       red: { bg: 'bg-red-500/10', text: 'text-red-500', border: 'border-red-500/20', hoverBorder: 'hover:border-red-500/50' },
       green: { bg: 'bg-green-500/10', text: 'text-green-500', border: 'border-green-500/20', hoverBorder: 'hover:border-green-500/50' },
       orange: { bg: 'bg-orange-500/10', text: 'text-orange-500', border: 'border-orange-500/20', hoverBorder: 'hover:border-orange-500/50' },
-      cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-500', border: 'border-cyan-500/20', hoverBorder: 'hover:border-cyan-500/50' }
+      cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-500', border: 'border-cyan-500/20', hoverBorder: 'hover:border-cyan-500/50' },
+      emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500', border: 'border-emerald-500/20', hoverBorder: 'hover:border-emerald-500/50' },
+      indigo: { bg: 'bg-indigo-500/10', text: 'text-indigo-500', border: 'border-indigo-500/20', hoverBorder: 'hover:border-indigo-500/50' }
     };
     return map[cor] || map.blue;
   };

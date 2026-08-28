@@ -38,6 +38,25 @@ export const relatorioService = {
     this.downloadArquivo(response.data, 'relatorio_contabil.pdf');
   },
 
+  // DFC simplificada: saldo inicial, entradas/saídas do período por origem,
+  // saldo final. Vem do livro-caixa (CaixaService), não de estimativa.
+  async downloadFluxoCaixaPdf(dataInicio?: string, dataFim?: string): Promise<void> {
+    const response = await api.get('/relatorios/fluxo-caixa/pdf', {
+      params: { dataInicio, dataFim },
+      responseType: 'blob',
+    });
+    this.downloadArquivo(response.data, 'fluxo_caixa.pdf');
+  },
+
+  // Balanço Patrimonial é sempre uma fotografia de agora — sem parâmetros
+  // de data, diferente dos outros relatórios.
+  async downloadBalancoPatrimonialPdf(): Promise<void> {
+    const response = await api.get('/relatorios/balanco-patrimonial/pdf', {
+      responseType: 'blob',
+    });
+    this.downloadArquivo(response.data, 'balanco_patrimonial.pdf');
+  },
+
   async downloadPerdasPdf(dataInicio?: string, dataFim?: string): Promise<void> {
     const response = await api.get('/relatorios/perdas/pdf', {
       params: { dataInicio, dataFim },

@@ -77,7 +77,7 @@ export default function Configuracoes() {
   // hora de salvar que não tinha permissão).
   const podeEditarEmpresa = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
-  const [empresaData, setEmpresaData] = useState({ cnpj: '', razaoSocial: '', nomeFantasia: '', email: '', celular: '', endereco: '', cidade: '', estado: '', chavePix: '' });
+  const [empresaData, setEmpresaData] = useState({ cnpj: '', razaoSocial: '', nomeFantasia: '', email: '', celular: '', endereco: '', cidade: '', estado: '', chavePix: '', capitalSocial: '' });
   const [salvandoEmpresa, setSalvandoEmpresa] = useState(false);
 
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
@@ -105,7 +105,8 @@ export default function Configuracoes() {
         nomeFantasia: response.data.nomeFantasia || '', email: response.data.emailContato || '',
         celular: response.data.telefone || '', endereco: response.data.endereco || '',
         cidade: response.data.cidade || '', estado: response.data.estado || '',
-        chavePix: response.data.chavePix || ''
+        chavePix: response.data.chavePix || '',
+        capitalSocial: response.data.capitalSocial != null ? String(response.data.capitalSocial) : ''
       });
     } catch (error) { toast.error('Não foi possível carregar os dados da empresa.'); }
   };
@@ -125,7 +126,8 @@ export default function Configuracoes() {
       const dados = {
         razaoSocial: empresaData.razaoSocial, nomeFantasia: empresaData.nomeFantasia, emailContato: empresaData.email,
         telefone: empresaData.celular, endereco: empresaData.endereco, cidade: empresaData.cidade, estado: empresaData.estado,
-        chavePix: empresaData.chavePix
+        chavePix: empresaData.chavePix,
+        capitalSocial: empresaData.capitalSocial !== '' ? Number(empresaData.capitalSocial) : null
       };
       await api.put('/empresas/minha-empresa', dados);
       toast.success('Dados da empresa atualizados com sucesso!');
@@ -315,6 +317,21 @@ export default function Configuracoes() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Usada para gerar cobranças PIX no PDV e no Fiado. Deixe em branco se não quiser usar essa funcionalidade.
+                  </p>
+                </div>
+                {/* Capital Social — usado no Balanço Patrimonial (compõe o
+                    Patrimônio Líquido, junto com o resultado acumulado das
+                    vendas). O sistema não descobre esse valor sozinho. */}
+                <div className="space-y-2 sm:col-span-2">
+                  <Label className="text-foreground dark:text-gray-300">Capital Social (R$)</Label>
+                  <Input
+                    type="number" min="0" step="0.01"
+                    placeholder="Ex: 10000.00"
+                    value={empresaData.capitalSocial}
+                    onChange={e => setEmpresaData({ ...empresaData, capitalSocial: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Usado no Balanço Patrimonial (Patrimônio Líquido). Deixe em branco se ainda não souber esse valor.
                   </p>
                 </div>
               </div>

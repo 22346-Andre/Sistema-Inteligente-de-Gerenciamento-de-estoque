@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, TrendingUp, Users, Upload, Scan, X, ShoppingCart, FileText, Settings, Wallet, Webhook, Receipt } from 'lucide-react';
+import { LayoutDashboard, Package, TrendingUp, Users, Upload, Scan, X, ShoppingCart, FileText, Settings, Wallet, Webhook, Receipt, Landmark } from 'lucide-react';
 import { Link, useLocation } from 'react-router';
 import { Button } from '../components/ui/button';
 
@@ -10,8 +10,9 @@ interface SidebarProps {
 const menuItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/scanner', icon: Scan, label: 'Scanner/PDV' },
+  { path: '/caixa', icon: Landmark, label: 'Caixa' },
   { path: '/fiados', icon: Wallet, label: 'Contas a Receber' },
-  { path: '/despesas', icon: Receipt, label: 'Despesas' },
+  { path: '/despesas', icon: Receipt, label: 'Contas a Pagar' },
   { path: '/produtos', icon: Package, label: 'Catálogo de Produtos' },
   { path: '/fornecedores', icon: Users, label: 'Fornecedores' },
   { path: '/sugestoes-compra', icon: ShoppingCart, label: 'Sugestões de Compra' },
