@@ -16,6 +16,7 @@ const ROTULOS_ORIGEM: Record<string, string> = {
   PAGAMENTO_DESPESA: 'Pagamento de Despesa',
   APORTE_SOCIO: 'Aporte de Sócio',
   RETIRADA_SOCIO: 'Retirada de Sócio',
+  COMPRA_MERCADORIA: 'Compra de Mercadoria',
   OUTRO: 'Outro',
 };
 

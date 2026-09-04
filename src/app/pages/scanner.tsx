@@ -17,6 +17,7 @@ import { produtoService, Produto, FormaPagamento } from '../services/produto.ser
 import { pixService } from '../services/pix.Service';
 import { PixCobrancaDialog } from '../components/PixCobrancaDialog';
 import { PagamentoDialog } from '../components/PagamentoDialog';
+import { CompraDialog } from '../components/CompraDialog';
 import { fiadoService } from '../services/fiado.service';
 import { InstrucoesButton } from '../components/InstrucoesButton';
  
@@ -112,6 +113,9 @@ export default function ScannerPDV() {
 
   // MODAL DE FORMA DE PAGAMENTO (fechamento do PDV)
   const [modalPagamentoAberto, setModalPagamentoAberto] = useState(false);
+
+  // 🆕 MODAL DE FECHAMENTO DA ENTRADA (compra de mercadoria): à vista x a prazo
+  const [modalCompraAberto, setModalCompraAberto] = useState(false);
 
   // 🆕 MODAL DE REGISTRO DE FIADO (Contas a Receber) quando a venda é paga como Fiado
   const [modalFiadoAberto, setModalFiadoAberto] = useState(false);
@@ -248,6 +252,8 @@ export default function ScannerPDV() {
   const limparCarrinho = () => setCarrinho([]);
  
   const totalCarrinho = carrinho.reduce((acc, item) => acc + ((item.produto.precoVenda || item.produto.precoCusto || 0) * item.quantidade), 0);
+  // Valor de uma Entrada é sempre pelo preço de CUSTO (é o que de fato sai/fica a pagar na compra).
+  const totalCompraCarrinho = carrinho.reduce((acc, item) => acc + ((item.produto.precoCusto || 0) * item.quantidade), 0);
   const totalItens = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
   const carrinhoExcedeEstoque = carrinho.some(item => item.quantidade > item.produto.quantidade);
 
@@ -292,7 +298,11 @@ export default function ScannerPDV() {
     }
   };
  
-  const handleFinalizar = async (tipo: 'SAIDA' | 'ENTRADA', formaPagamento?: FormaPagamento) => {
+  const handleFinalizar = async (
+    tipo: 'SAIDA' | 'ENTRADA',
+    formaPagamento?: FormaPagamento,
+    infoCompra?: { pagamentoImediato: boolean; dataVencimento?: string }
+  ) => {
     if (carrinho.length === 0) return;
  
     if (tipo === 'SAIDA') {
@@ -323,7 +333,12 @@ export default function ScannerPDV() {
             formaPagamento, // 🆕
           });
         } else {
-          await api.post(`/produtos/${item.produto.id}/lotes`, { quantidade: item.quantidade, novoPrecoCompra: item.produto.precoCusto });
+          await api.post(`/produtos/${item.produto.id}/lotes`, {
+            quantidade: item.quantidade,
+            novoPrecoCompra: item.produto.precoCusto,
+            pagamentoImediato: infoCompra?.pagamentoImediato ?? true,
+            dataVencimento: infoCompra?.dataVencimento,
+          });
         }
         itensProcessados++;
       }
@@ -713,7 +728,7 @@ export default function ScannerPDV() {
                     <Button
                       variant="outline"
                       className="h-12 sm:h-14 border-blue-500/40 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 w-full"
-                      onClick={() => handleFinalizar('ENTRADA')}
+                      onClick={() => setModalCompraAberto(true)}
                       disabled={carrinho.length === 0}
                     >
                       <Plus className="mr-2 h-4 w-4" /> Entrada
@@ -985,6 +1000,17 @@ export default function ScannerPDV() {
         onConfirmar={(forma) => {
           setModalPagamentoAberto(false);
           handleFinalizar('SAIDA', forma);
+        }}
+      />
+
+      {/* 🆕 Modal de fechamento da Entrada (compra de mercadoria): à vista x a prazo */}
+      <CompraDialog
+        aberto={modalCompraAberto}
+        totalCompra={totalCompraCarrinho}
+        onCancelar={() => setModalCompraAberto(false)}
+        onConfirmar={(info) => {
+          setModalCompraAberto(false);
+          handleFinalizar('ENTRADA', undefined, info);
         }}
       />
 

@@ -51,6 +51,13 @@ export interface LoteDTO {
   dataValidade?: string;
   novoPrecoCompra?: number;
   chaveNotaFiscal?: string;
+  // true -> baixa direto do Caixa agora (compra à vista).
+  // false/omitido -> cria uma Despesa PENDENTE (Contas a Pagar), que só
+  // afeta o Caixa quando for marcada como paga.
+  pagamentoImediato?: boolean;
+  fornecedorId?: number;
+  dataVencimento?: string;
+  categoria?: string;
 }
 
 export type FormaPagamento = 'CARTAO_DEBITO' | 'CARTAO_CREDITO' | 'PIX' | 'ESPECIE' | 'FIADO';

@@ -1,7 +1,7 @@
 import api from './api';
 
 export type TipoMovimentoCaixa = 'ENTRADA' | 'SAIDA';
-export type OrigemCaixa = 'VENDA_PDV' | 'RECEBIMENTO_FIADO' | 'PAGAMENTO_DESPESA' | 'APORTE_SOCIO' | 'RETIRADA_SOCIO' | 'OUTRO';
+export type OrigemCaixa = 'VENDA_PDV' | 'RECEBIMENTO_FIADO' | 'PAGAMENTO_DESPESA' | 'APORTE_SOCIO' | 'RETIRADA_SOCIO' | 'COMPRA_MERCADORIA' | 'OUTRO';
 
 export interface MovimentoCaixa {
   id: number;
