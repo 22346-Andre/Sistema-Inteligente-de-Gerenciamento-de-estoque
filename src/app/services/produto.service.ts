@@ -62,6 +62,26 @@ export interface LoteDTO {
 
 export type FormaPagamento = 'CARTAO_DEBITO' | 'CARTAO_CREDITO' | 'PIX' | 'ESPECIE' | 'FIADO';
 
+// 🆕 Reflete o retorno de GET /produtos/{id}/lotes — cada compra vira um
+// lote separado, com sua própria validade e custo.
+export interface Lote {
+  id: number;
+  numeroLote?: string;
+  quantidade: number;
+  dataEntrada: string;
+  dataValidade?: string;
+  novoPrecoCompra?: number;
+}
+
+// 🆕 Reflete o retorno de GET /produtos/alertas-vencimento.
+export interface AlertaVencimento {
+  produtoId: number;
+  produtoNome: string;
+  numeroLote?: string;
+  quantidade: number;
+  dataValidade: string;
+}
+
 export interface SaidaDTO {
   quantidadeDesejada: number;
   tipo?: string;
@@ -131,6 +151,18 @@ export const produtoService = {
 
   async adicionarLote(id: number, lote: LoteDTO): Promise<Produto> {
     const response = await api.post(`/produtos/${id}/lotes`, lote);
+    return response.data;
+  },
+
+  // 🆕 Lotes com saldo de um produto, já vem ordenado por quem vence primeiro.
+  async listarLotes(id: number): Promise<Lote[]> {
+    const response = await api.get(`/produtos/${id}/lotes`);
+    return response.data;
+  },
+
+  // 🆕 Alertas de vencimento da empresa toda. dias = janela de antecedência (padrão 30).
+  async listarAlertasVencimento(dias?: number): Promise<AlertaVencimento[]> {
+    const response = await api.get('/produtos/alertas-vencimento', { params: { dias } });
     return response.data;
   },
 

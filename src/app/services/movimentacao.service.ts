@@ -13,6 +13,9 @@ export interface Movimentacao {
   dataMovimentacao: string;
   motivo?: string;
   chaveNotaFiscal?: string;
+  // 🆕 Rastreabilidade: quem fez essa movimentação.
+  usuarioId?: number | null;
+  usuarioNome?: string | null;
 }
 
 export const movimentacaoService = {

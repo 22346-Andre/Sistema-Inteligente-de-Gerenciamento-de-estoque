@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, TrendingUp, Users, Upload, Scan, X, ShoppingCart, FileText, Settings, Wallet, Webhook, Receipt, Landmark } from 'lucide-react';
+import { LayoutDashboard, Package, TrendingUp, Users, Upload, Scan, X, ShoppingCart, FileText, Settings, Wallet, Webhook, Receipt, Landmark, AlertTriangle } from 'lucide-react';
 import { Link, useLocation } from 'react-router';
 import { Button } from '../components/ui/button';
 
@@ -14,6 +14,7 @@ const menuItems = [
   { path: '/fiados', icon: Wallet, label: 'Contas a Receber' },
   { path: '/despesas', icon: Receipt, label: 'Contas a Pagar' },
   { path: '/produtos', icon: Package, label: 'Catálogo de Produtos' },
+  { path: '/vencimentos', icon: AlertTriangle, label: 'Vencimentos' },
   { path: '/fornecedores', icon: Users, label: 'Fornecedores' },
   { path: '/sugestoes-compra', icon: ShoppingCart, label: 'Sugestões de Compra' },
   { path: '/importacao', icon: Upload, label: 'Importação CSV' },

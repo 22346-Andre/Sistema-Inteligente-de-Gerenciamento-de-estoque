@@ -130,14 +130,15 @@ export default function Caixa() {
                   <TableHead>Data</TableHead>
                   <TableHead>Origem</TableHead>
                   <TableHead>Descrição</TableHead>
+                  <TableHead>Funcionário</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
                 ) : extrato.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Nenhum lançamento ainda.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Nenhum lançamento ainda.</TableCell></TableRow>
                 ) : (
                   extrato.map((mov) => (
                     <TableRow key={mov.id}>
@@ -151,6 +152,7 @@ export default function Caixa() {
                         </span>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[260px] truncate">{mov.descricao || '—'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{mov.usuarioNome || '—'}</TableCell>
                       <TableCell className={`text-right font-bold ${mov.tipo === 'ENTRADA' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                         {mov.tipo === 'ENTRADA' ? '+' : '-'} R$ {mov.valor.toFixed(2)}
                       </TableCell>

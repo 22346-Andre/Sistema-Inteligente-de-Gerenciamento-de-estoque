@@ -13,6 +13,7 @@ import { ptBR } from 'date-fns/locale';
 import api from '../services/api';
 import { toast } from 'sonner';
 import { produtoService } from '../services/produto.service';
+import type { Lote } from '../services/produto.service';
 
 const formatBRL = (valor: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
@@ -21,6 +22,7 @@ export default function ProdutoDetalhes() {
   const { id } = useParams();
   const [produto, setProduto] = useState<any>(null);
   const [movimentacoes, setMovimentacoes] = useState<any[]>([]);
+  const [lotes, setLotes] = useState<Lote[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [dialogEditOpen, setDialogEditOpen] = useState(false);
@@ -44,6 +46,12 @@ export default function ProdutoDetalhes() {
         setMovimentacoes(resMov.data);
       } catch (e) {
         console.log("Histórico vazio assumido.");
+      }
+      try {
+        const resLotes = await produtoService.listarLotes(Number(id));
+        setLotes(resLotes);
+      } catch (e) {
+        console.log("Lotes vazios assumidos.");
       }
     } catch (error) {
       toast.error("Erro ao carregar os detalhes do produto.");
@@ -403,6 +411,7 @@ export default function ProdutoDetalhes() {
           <TabsTrigger value="geral" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground"><Package className="h-4 w-4"/> Visão Geral</TabsTrigger>
           <TabsTrigger value="fiscal" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground"><Scale className="h-4 w-4"/> Fiscal e Tributos</TabsTrigger>
           <TabsTrigger value="historico" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground"><Clock className="h-4 w-4"/> Movimentações</TabsTrigger>
+          <TabsTrigger value="lotes" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground"><AlertTriangle className="h-4 w-4"/> Lotes e Validade</TabsTrigger>
         </TabsList>
 
         <TabsContent value="geral" className="space-y-6">
@@ -516,6 +525,7 @@ export default function ProdutoDetalhes() {
                       <TableHead>Data/Hora</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Motivo / Observação</TableHead>
+                      <TableHead>Funcionário</TableHead>
                       <TableHead className="text-right">Qtd</TableHead>
                       <TableHead className="text-center">Ações</TableHead>
                     </TableRow>
@@ -528,6 +538,7 @@ export default function ProdutoDetalhes() {
                         <TableCell className="text-muted-foreground text-sm max-w-[300px] truncate" title={mov.motivo || mov.observacao}>
                           {mov.motivo || mov.observacao || '-'}
                         </TableCell>
+                        <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{mov.usuarioNome || '-'}</TableCell>
                         <TableCell className="font-bold text-right text-foreground">{mov.quantidade}</TableCell>
                         <TableCell className="text-center">
                           <Button
@@ -542,6 +553,70 @@ export default function ProdutoDetalhes() {
                         </TableCell>
                       </TableRow>
                     ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 🆕 Aba Lotes e Validade — antes esse dado só existia no banco, nunca aparecia em tela */}
+        <TabsContent value="lotes">
+          <Card className="bg-card border-border shadow-sm">
+            <CardHeader><CardTitle>Lotes com Saldo (ordenados por quem vence primeiro)</CardTitle></CardHeader>
+            <CardContent>
+              {lotes.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground bg-muted rounded-lg border border-border">
+                  Nenhum lote com saldo pra esse produto ainda.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nº do Lote</TableHead>
+                      <TableHead>Entrada</TableHead>
+                      <TableHead>Validade</TableHead>
+                      <TableHead className="text-right">Saldo</TableHead>
+                      <TableHead className="text-right">Custo de Compra</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lotes.map((lote) => {
+                      const hoje = new Date();
+                      const validade = lote.dataValidade ? new Date(lote.dataValidade + 'T00:00:00') : null;
+                      const diasParaVencer = validade ? Math.ceil((validade.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                      const vencido = diasParaVencer !== null && diasParaVencer < 0;
+                      const proximoDoVencimento = diasParaVencer !== null && diasParaVencer >= 0 && diasParaVencer <= 30;
+
+                      return (
+                        <TableRow key={lote.id} className="hover:bg-muted/50 transition-colors">
+                          <TableCell className="text-foreground">{lote.numeroLote || `#${lote.id}`}</TableCell>
+                          <TableCell className="whitespace-nowrap text-muted-foreground text-sm">
+                            {format(new Date(lote.dataEntrada), "dd/MM/yyyy", { locale: ptBR })}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {validade ? (
+                              <span className={
+                                vencido ? 'text-red-600 dark:text-red-400 font-medium flex items-center gap-1'
+                                  : proximoDoVencimento ? 'text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1'
+                                    : 'text-foreground'
+                              }>
+                                {(vencido || proximoDoVencimento) && <AlertTriangle className="h-3.5 w-3.5" />}
+                                {format(validade, "dd/MM/yyyy", { locale: ptBR })}
+                                {vencido && ' (vencido)'}
+                                {proximoDoVencimento && !vencido && ` (${diasParaVencer}d)`}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">Sem validade</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-bold text-right text-foreground">{lote.quantidade}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {lote.novoPrecoCompra != null ? `R$ ${Number(lote.novoPrecoCompra).toFixed(2)}` : '-'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}

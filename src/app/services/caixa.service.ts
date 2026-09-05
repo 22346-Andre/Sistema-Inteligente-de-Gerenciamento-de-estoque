@@ -10,6 +10,10 @@ export interface MovimentoCaixa {
   valor: number;
   descricao: string | null;
   dataMovimento: string;
+  // 🆕 Rastreabilidade: quem lançou/gerou esse movimento (snapshot; pode vir
+  // nulo em lançamentos automáticos disparados por webhook, ex.: PIX pago).
+  usuarioId?: number | null;
+  usuarioNome?: string | null;
 }
 
 export interface LancamentoCaixaDTO {
