@@ -94,6 +94,9 @@ export default function ScannerPDV() {
   
   const [file, setFile] = useState<File | null>(null);
   const [relatorioImportacao, setRelatorioImportacao] = useState<string | null>(null);
+  // 🆕 Como a compra da NF-e foi paga (toda NF-e é uma compra de verdade)
+  const [pagamentoImediatoXml, setPagamentoImediatoXml] = useState(true);
+  const [dataVencimentoXml, setDataVencimentoXml] = useState('');
   const [loadingXml, setLoadingXml] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
  
@@ -572,6 +575,10 @@ export default function ScannerPDV() {
       setLoadingXml(true);
       const formData = new FormData();
       formData.append('ficheiro', file); // mesmo nome de campo aceito pelo backend (ImportacaoController)
+      formData.append('pagamentoImediato', String(pagamentoImediatoXml));
+      if (!pagamentoImediatoXml && dataVencimentoXml) {
+        formData.append('dataVencimento', dataVencimentoXml);
+      }
  
       const response = await api.post('/importacao/xml-direto', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -594,6 +601,8 @@ export default function ScannerPDV() {
   const limparImportacaoXml = () => {
     setFile(null);
     setRelatorioImportacao(null);
+    setPagamentoImediatoXml(true);
+    setDataVencimentoXml('');
   };
  
   return (
@@ -969,6 +978,34 @@ export default function ScannerPDV() {
                   <div className="w-full flex flex-col items-center">
                     <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-green-500/10 flex items-center justify-center mb-4 sm:mb-6"><FileCode className="h-8 w-8 sm:h-10 sm:w-10 text-green-500" /></div>
                     <h3 className="text-sm sm:text-lg font-semibold text-foreground max-w-[200px] sm:max-w-full truncate px-4">{file.name}</h3>
+
+                    {/* 🆕 Toda NF-e é uma compra de verdade — pergunta como foi paga antes de confirmar. */}
+                    <div className="w-full max-w-sm px-4 mt-4 space-y-3">
+                      <p className="text-xs font-medium text-foreground text-center">Como essa compra foi paga?</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPagamentoImediatoXml(true)}
+                          className={`rounded-lg border p-2.5 text-xs font-medium transition-colors ${pagamentoImediatoXml ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400' : 'border-border text-foreground hover:bg-muted'}`}
+                        >
+                          À vista (baixa o Caixa agora)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPagamentoImediatoXml(false)}
+                          className={`rounded-lg border p-2.5 text-xs font-medium transition-colors ${!pagamentoImediatoXml ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400' : 'border-border text-foreground hover:bg-muted'}`}
+                        >
+                          A prazo (Contas a Pagar)
+                        </button>
+                      </div>
+                      {!pagamentoImediatoXml && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-foreground">Vencimento</label>
+                          <Input type="date" value={dataVencimentoXml} onChange={e => setDataVencimentoXml(e.target.value)} />
+                        </div>
+                      )}
+                    </div>
+
                     <div className="flex flex-col sm:flex-row gap-3 mt-6 sm:mt-8 w-full px-4 sm:px-8">
                       <Button variant="outline" className="flex-1 text-red-600 dark:text-red-400 w-full" onClick={limparImportacaoXml} disabled={loadingXml}>
                         <Trash2 className="h-4 w-4 mr-2" /> Remover
