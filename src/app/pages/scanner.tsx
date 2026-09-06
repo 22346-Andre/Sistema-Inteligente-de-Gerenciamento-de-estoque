@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
-import { Camera, Plus, UploadCloud, FileCode, Trash2, Barcode, FileUp, CheckCircle, Search, Clock, FileText, ShoppingCart, AlertTriangle, Printer, XCircle, PackageX, QrCode, MessageCircle } from 'lucide-react';
+import { Camera, UploadCloud, FileCode, Trash2, Barcode, FileUp, CheckCircle, Search, Clock, FileText, ShoppingCart, AlertTriangle, Printer, XCircle, PackageX, QrCode, MessageCircle, User, Lock, Unlock } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -17,9 +17,11 @@ import { produtoService, Produto, FormaPagamento } from '../services/produto.ser
 import { pixService } from '../services/pix.Service';
 import { PixCobrancaDialog } from '../components/PixCobrancaDialog';
 import { PagamentoDialog } from '../components/PagamentoDialog';
-import { CompraDialog } from '../components/CompraDialog';
 import { fiadoService } from '../services/fiado.service';
+import { sessaoCaixaService } from '../services/sessaoCaixa.service';
+import type { SessaoCaixa } from '../services/sessaoCaixa.service';
 import { InstrucoesButton } from '../components/InstrucoesButton';
+import { useAuth } from '../contexts/auth-context';
  
 interface ItemCarrinho {
   produto: Produto;
@@ -72,6 +74,7 @@ function extrairMensagemErro(error: any, fallback: string): string {
 }
  
 export default function ScannerPDV() {
+  const { user } = useAuth();
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [termoBusca, setTermoBusca] = useState('');
   const [inputBuscaFocado, setInputBuscaFocado] = useState(false);
@@ -96,6 +99,17 @@ export default function ScannerPDV() {
  
   // ESTADOS DO MODAL DE PERDAS
   const [modalPerdaAberto, setModalPerdaAberto] = useState(false);
+
+  // 🆕 Abertura/fechamento de caixa (turno do operador)
+  const [sessaoAtual, setSessaoAtual] = useState<SessaoCaixa | null>(null);
+  const [carregandoSessao, setCarregandoSessao] = useState(true);
+  const [modalAbrirCaixaAberto, setModalAbrirCaixaAberto] = useState(false);
+  const [modalFecharCaixaAberto, setModalFecharCaixaAberto] = useState(false);
+  const [valorAberturaCaixa, setValorAberturaCaixa] = useState('');
+  const [valorFechamentoCaixa, setValorFechamentoCaixa] = useState('');
+  const [processandoSessao, setProcessandoSessao] = useState(false);
+  // 🆕 Resumo mostrado depois de fechar: esperado x contado x diferença.
+  const [resumoFechamento, setResumoFechamento] = useState<SessaoCaixa | null>(null);
   const [motivoPerda, setMotivoPerda] = useState('');
 
   
@@ -114,9 +128,6 @@ export default function ScannerPDV() {
   // MODAL DE FORMA DE PAGAMENTO (fechamento do PDV)
   const [modalPagamentoAberto, setModalPagamentoAberto] = useState(false);
 
-  // 🆕 MODAL DE FECHAMENTO DA ENTRADA (compra de mercadoria): à vista x a prazo
-  const [modalCompraAberto, setModalCompraAberto] = useState(false);
-
   // 🆕 MODAL DE REGISTRO DE FIADO (Contas a Receber) quando a venda é paga como Fiado
   const [modalFiadoAberto, setModalFiadoAberto] = useState(false);
   const [fiadoCliente, setFiadoCliente] = useState('');
@@ -129,7 +140,56 @@ export default function ScannerPDV() {
   useEffect(() => {
     carregarProdutos();
     carregarHistorico();
+    carregarSessaoCaixa();
   }, []);
+
+  // 🆕 Abertura/fechamento de caixa (turno do operador logado)
+  const carregarSessaoCaixa = async () => {
+    try {
+      setCarregandoSessao(true);
+      const sessao = await sessaoCaixaService.buscarAtual();
+      setSessaoAtual(sessao);
+    } catch (e) {
+      console.log('Não foi possível carregar o status do caixa.');
+    } finally {
+      setCarregandoSessao(false);
+    }
+  };
+
+  const handleAbrirCaixa = async () => {
+    try {
+      setProcessandoSessao(true);
+      const sessao = await sessaoCaixaService.abrir({
+        valorAbertura: valorAberturaCaixa ? Number(valorAberturaCaixa) : undefined,
+      });
+      setSessaoAtual(sessao);
+      setModalAbrirCaixaAberto(false);
+      setValorAberturaCaixa('');
+      toast.success('Caixa aberto!');
+    } catch (error: any) {
+      toast.error(extrairMensagemErro(error, 'Erro ao abrir o caixa.'));
+    } finally {
+      setProcessandoSessao(false);
+    }
+  };
+
+  const handleFecharCaixa = async () => {
+    try {
+      setProcessandoSessao(true);
+      const sessaoFechada = await sessaoCaixaService.fechar({
+        valorFechamentoInformado: valorFechamentoCaixa ? Number(valorFechamentoCaixa) : undefined,
+      });
+      setSessaoAtual(null);
+      setModalFecharCaixaAberto(false);
+      setValorFechamentoCaixa('');
+      setResumoFechamento(sessaoFechada);
+      toast.success('Caixa fechado!');
+    } catch (error: any) {
+      toast.error(extrairMensagemErro(error, 'Erro ao fechar o caixa.'));
+    } finally {
+      setProcessandoSessao(false);
+    }
+  };
 
   // Assim que o catálogo carregar, se veio um produto via URL (?produto=...),
   // pré-carrega ele no carrinho automaticamente pra reposição.
@@ -252,8 +312,6 @@ export default function ScannerPDV() {
   const limparCarrinho = () => setCarrinho([]);
  
   const totalCarrinho = carrinho.reduce((acc, item) => acc + ((item.produto.precoVenda || item.produto.precoCusto || 0) * item.quantidade), 0);
-  // Valor de uma Entrada é sempre pelo preço de CUSTO (é o que de fato sai/fica a pagar na compra).
-  const totalCompraCarrinho = carrinho.reduce((acc, item) => acc + ((item.produto.precoCusto || 0) * item.quantidade), 0);
   const totalItens = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
   const carrinhoExcedeEstoque = carrinho.some(item => item.quantidade > item.produto.quantidade);
 
@@ -299,9 +357,8 @@ export default function ScannerPDV() {
   };
  
   const handleFinalizar = async (
-    tipo: 'SAIDA' | 'ENTRADA',
-    formaPagamento?: FormaPagamento,
-    infoCompra?: { pagamentoImediato: boolean; dataVencimento?: string }
+    tipo: 'SAIDA',
+    formaPagamento?: FormaPagamento
   ) => {
     if (carrinho.length === 0) return;
  
@@ -316,7 +373,7 @@ export default function ScannerPDV() {
  
     let itensProcessados = 0;
     try {
-      toast.loading(`A processar ${tipo === 'SAIDA' ? 'Venda' : 'Entrada'}...`, { id: 'op' });
+      toast.loading('A processar Venda...', { id: 'op' });
       const chaveUnica = Array.from({length: 15}, () => Math.floor(Math.random() * 10)).join('');
 
       // guarda os itens/total ANTES de limpar o carrinho, já que o fluxo de
@@ -325,21 +382,12 @@ export default function ScannerPDV() {
       const totalDaVenda = totalCarrinho;
  
       for (const item of carrinho) {
-        if (tipo === 'SAIDA') {
-          await produtoService.registrarSaida(item.produto.id, {
-            quantidadeDesejada: item.quantidade,
-            motivo: "Venda Caixa PDV",
-            chaveNotaFiscal: chaveUnica,
-            formaPagamento, // 🆕
-          });
-        } else {
-          await api.post(`/produtos/${item.produto.id}/lotes`, {
-            quantidade: item.quantidade,
-            novoPrecoCompra: item.produto.precoCusto,
-            pagamentoImediato: infoCompra?.pagamentoImediato ?? true,
-            dataVencimento: infoCompra?.dataVencimento,
-          });
-        }
+        await produtoService.registrarSaida(item.produto.id, {
+          quantidadeDesejada: item.quantidade,
+          motivo: "Venda Caixa PDV",
+          chaveNotaFiscal: chaveUnica,
+          formaPagamento, // 🆕
+        });
         itensProcessados++;
       }
 
@@ -553,6 +601,37 @@ export default function ScannerPDV() {
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Caixa / PDV Aberto</h1>
         <p className="text-sm md:text-base text-muted-foreground">Passe os produtos no leitor para adicionar ao carrinho.</p>
+
+        {/* 🆕 Rastreabilidade: quem tá operando + status do turno de caixa */}
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          {user?.nome && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground bg-muted border border-border px-2.5 py-1 rounded-md">
+              <User className="h-3.5 w-3.5" /> Operador: {user.nome}
+            </span>
+          )}
+
+          {!carregandoSessao && (
+            sessaoAtual ? (
+              <>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 dark:text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-md">
+                  <Unlock className="h-3.5 w-3.5" /> Caixa aberto desde {format(new Date(sessaoAtual.dataAbertura), "HH:mm", { locale: ptBR })}
+                </span>
+                <Button size="sm" variant="outline" className="h-7 text-xs border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-500/10" onClick={() => setModalFecharCaixaAberto(true)}>
+                  Fechar Caixa
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-md">
+                  <Lock className="h-3.5 w-3.5" /> Caixa fechado
+                </span>
+                <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white" onClick={() => setModalAbrirCaixaAberto(true)}>
+                  Abrir Caixa
+                </Button>
+              </>
+            )
+          )}
+        </div>
       </div>
  
       <Tabs defaultValue="pdv" className="w-full">
@@ -724,21 +803,12 @@ export default function ScannerPDV() {
                     </div>
                   )}
  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 w-full">
-                    <Button
-                      variant="outline"
-                      className="h-12 sm:h-14 border-blue-500/40 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 w-full"
-                      onClick={() => setModalCompraAberto(true)}
-                      disabled={carrinho.length === 0}
-                    >
-                      <Plus className="mr-2 h-4 w-4" /> Entrada
-                    </Button>
- 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 w-full">
                     <Button
                       variant="outline"
                       className="h-12 sm:h-14 border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-500/10 w-full"
                       onClick={() => setModalPerdaAberto(true)}
-                      disabled={carrinho.length === 0 || carrinhoExcedeEstoque}
+                      disabled={carrinho.length === 0 || carrinhoExcedeEstoque || !sessaoAtual}
                     >
                       <AlertTriangle className="mr-2 h-4 w-4" /> Perda
                     </Button>
@@ -746,11 +816,17 @@ export default function ScannerPDV() {
                     <Button
                       className="h-12 sm:h-14 bg-green-600 hover:bg-green-700 text-white shadow-lg w-full"
                       onClick={() => setModalPagamentoAberto(true)}
-                      disabled={carrinho.length === 0 || carrinhoExcedeEstoque}
+                      disabled={carrinho.length === 0 || carrinhoExcedeEstoque || !sessaoAtual}
                     >
                       <CheckCircle className="mr-2 h-4 w-4" /> Vender
                     </Button>
                   </div>
+
+                  {!sessaoAtual && !carregandoSessao && (
+                    <p className="text-xs text-center text-amber-600 dark:text-amber-400 -mt-2 mb-4">
+                      Abra o caixa acima pra poder vender ou registrar perdas.
+                    </p>
+                  )}
  
                   <Button variant="ghost" className="w-full text-muted-foreground hover:bg-muted hover:text-foreground h-10 sm:h-12" onClick={limparCarrinho} disabled={carrinho.length === 0}>
                     <XCircle className="w-4 h-4 mr-2" /> Cancelar Compra
@@ -1003,16 +1079,94 @@ export default function ScannerPDV() {
         }}
       />
 
-      {/* 🆕 Modal de fechamento da Entrada (compra de mercadoria): à vista x a prazo */}
-      <CompraDialog
-        aberto={modalCompraAberto}
-        totalCompra={totalCompraCarrinho}
-        onCancelar={() => setModalCompraAberto(false)}
-        onConfirmar={(info) => {
-          setModalCompraAberto(false);
-          handleFinalizar('ENTRADA', undefined, info);
-        }}
-      />
+      {/* 🆕 Modal Abrir Caixa */}
+      <Dialog open={modalAbrirCaixaAberto} onOpenChange={setModalAbrirCaixaAberto}>
+        <DialogContent className="sm:max-w-sm w-[95%] mx-auto rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Abrir Caixa</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm mt-2">
+              Registra o horário de abertura do seu turno. O fundo de troco é opcional.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <label className="text-sm font-medium text-foreground">Fundo de troco (opcional)</label>
+            <Input type="number" step="0.01" min="0" placeholder="R$ 0,00" value={valorAberturaCaixa} onChange={e => setValorAberturaCaixa(e.target.value)} />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0 mt-2">
+            <Button variant="outline" onClick={() => setModalAbrirCaixaAberto(false)}>Cancelar</Button>
+            <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleAbrirCaixa} disabled={processandoSessao}>
+              {processandoSessao ? 'Abrindo...' : 'Abrir Caixa'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 🆕 Modal Fechar Caixa */}
+      <Dialog open={modalFecharCaixaAberto} onOpenChange={setModalFecharCaixaAberto}>
+        <DialogContent className="sm:max-w-sm w-[95%] mx-auto rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Fechar Caixa</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm mt-2">
+              {sessaoAtual && `Aberto às ${format(new Date(sessaoAtual.dataAbertura), "HH:mm", { locale: ptBR })}. `}
+              Quanto você contou em dinheiro na gaveta? (opcional, é só pra conferência)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <label className="text-sm font-medium text-foreground">Valor contado (opcional)</label>
+            <Input type="number" step="0.01" min="0" placeholder="R$ 0,00" value={valorFechamentoCaixa} onChange={e => setValorFechamentoCaixa(e.target.value)} />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0 mt-2">
+            <Button variant="outline" onClick={() => setModalFecharCaixaAberto(false)}>Cancelar</Button>
+            <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={handleFecharCaixa} disabled={processandoSessao}>
+              {processandoSessao ? 'Fechando...' : 'Fechar Caixa'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 🆕 Resumo do fechamento: esperado x contado x diferença */}
+      <Dialog open={!!resumoFechamento} onOpenChange={(open) => !open && setResumoFechamento(null)}>
+        <DialogContent className="sm:max-w-sm w-[95%] mx-auto rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Caixa Fechado</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm mt-2">
+              Conferência da gaveta (fundo de troco + vendas em espécie do turno).
+            </DialogDescription>
+          </DialogHeader>
+          {resumoFechamento && (() => {
+            const esperado = resumoFechamento.valorEsperado ?? 0;
+            const contado = resumoFechamento.valorFechamentoInformado;
+            const diferenca = contado != null ? contado - esperado : null;
+            return (
+              <div className="space-y-3 py-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Esperado (troco + vendas em espécie)</span>
+                  <span className="font-bold text-foreground">R$ {esperado.toFixed(2)}</span>
+                </div>
+                {contado != null ? (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Contado na gaveta</span>
+                      <span className="font-bold text-foreground">R$ {contado.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-2 border-t border-border">
+                      <span className="text-muted-foreground">Diferença</span>
+                      <span className={`font-bold ${diferenca === 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {diferenca! > 0 ? '+' : ''}R$ {diferenca!.toFixed(2)} {diferenca === 0 ? '(bateu certinho)' : diferenca! > 0 ? '(sobra)' : '(falta)'}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Você não informou o valor contado — sem conferência dessa vez.</p>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button onClick={() => setResumoFechamento(null)} className="w-full">Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 🆕 Modal pra capturar o cliente quando a venda é fechada como Fiado */}
       <Dialog open={modalFiadoAberto} onOpenChange={setModalFiadoAberto}>

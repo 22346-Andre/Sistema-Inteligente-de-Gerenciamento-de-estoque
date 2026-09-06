@@ -43,6 +43,8 @@ export interface ProdutoDTO {
   cfop?: string;
   finalidadeEstoque?: string;
   impostos?: Imposto[];
+  // 🆕 Validade do lote de estoque inicial (opcional, formato AAAA-MM-DD).
+  dataValidade?: string;
 }
 
 export interface LoteDTO {

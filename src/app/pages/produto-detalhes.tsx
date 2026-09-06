@@ -23,6 +23,21 @@ export default function ProdutoDetalhes() {
   const [produto, setProduto] = useState<any>(null);
   const [movimentacoes, setMovimentacoes] = useState<any[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
+
+  // 🆕 Modal "Adicionar Lote" — a entrada de mercadoria com validade agora
+  // mora aqui, na tela do produto, não mais no PDV/scanner (o caixa não
+  // controla entrada de mercadoria, e cada remessa pode ter validade
+  // diferente da anterior).
+  const [modalLoteAberto, setModalLoteAberto] = useState(false);
+  const [novoLote, setNovoLote] = useState({
+    quantidade: '',
+    numeroLote: '',
+    novoPrecoCompra: '',
+    dataValidade: '',
+    pagamentoImediato: true as boolean,
+    dataVencimento: '',
+  });
+  const [salvandoLote, setSalvandoLote] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [dialogEditOpen, setDialogEditOpen] = useState(false);
@@ -57,6 +72,35 @@ export default function ProdutoDetalhes() {
       toast.error("Erro ao carregar os detalhes do produto.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🆕 Salva um novo lote (entrada de mercadoria) direto pra esse produto,
+  // com número do lote, custo e validade próprios — dados que o PDV nunca
+  // pediu.
+  const handleAdicionarLote = async () => {
+    if (!novoLote.quantidade || Number(novoLote.quantidade) <= 0) {
+      toast.error('Informe a quantidade recebida.');
+      return;
+    }
+    try {
+      setSalvandoLote(true);
+      await produtoService.adicionarLote(Number(id), {
+        quantidade: Number(novoLote.quantidade),
+        numeroLote: novoLote.numeroLote || undefined,
+        novoPrecoCompra: novoLote.novoPrecoCompra ? Number(novoLote.novoPrecoCompra) : undefined,
+        dataValidade: novoLote.dataValidade || undefined,
+        pagamentoImediato: novoLote.pagamentoImediato,
+        dataVencimento: novoLote.pagamentoImediato ? undefined : (novoLote.dataVencimento || undefined),
+      });
+      toast.success('Lote adicionado ao estoque!');
+      setModalLoteAberto(false);
+      setNovoLote({ quantidade: '', numeroLote: '', novoPrecoCompra: '', dataValidade: '', pagamentoImediato: true, dataVencimento: '' });
+      carregarDados();
+    } catch (error) {
+      toast.error('Erro ao adicionar o lote.');
+    } finally {
+      setSalvandoLote(false);
     }
   };
 
@@ -563,7 +607,12 @@ export default function ProdutoDetalhes() {
         {/* 🆕 Aba Lotes e Validade — antes esse dado só existia no banco, nunca aparecia em tela */}
         <TabsContent value="lotes">
           <Card className="bg-card border-border shadow-sm">
-            <CardHeader><CardTitle>Lotes com Saldo (ordenados por quem vence primeiro)</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Lotes com Saldo (ordenados por quem vence primeiro)</CardTitle>
+              <Button size="sm" onClick={() => setModalLoteAberto(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Adicionar Lote
+              </Button>
+            </CardHeader>
             <CardContent>
               {lotes.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground bg-muted rounded-lg border border-border">
@@ -625,6 +674,70 @@ export default function ProdutoDetalhes() {
         </TabsContent>
 
       </Tabs>
+
+      {/* 🆕 Modal "Adicionar Lote" — entrada de mercadoria com número de lote,
+          custo e validade próprios, pertence aqui e não no PDV. */}
+      <Dialog open={modalLoteAberto} onOpenChange={setModalLoteAberto}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar Lote — {produto?.nome}</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Quantidade recebida</Label>
+              <Input type="number" min="1" value={novoLote.quantidade} onChange={e => setNovoLote({ ...novoLote, quantidade: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Nº do Lote (opcional)</Label>
+              <Input value={novoLote.numeroLote} onChange={e => setNovoLote({ ...novoLote, numeroLote: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Custo de compra (unitário)</Label>
+              <Input type="number" step="0.01" min="0" value={novoLote.novoPrecoCompra} onChange={e => setNovoLote({ ...novoLote, novoPrecoCompra: e.target.value })} placeholder={produto?.precoCusto?.toString()} />
+            </div>
+            <div className="space-y-2">
+              <Label>Validade (opcional)</Label>
+              <Input type="date" value={novoLote.dataValidade} onChange={e => setNovoLote({ ...novoLote, dataValidade: e.target.value })} />
+            </div>
+          </div>
+
+          {novoLote.novoPrecoCompra && Number(novoLote.novoPrecoCompra) > 0 && (
+            <div className="space-y-3 pt-2 border-t border-border">
+              <Label>Como essa compra foi paga?</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNovoLote({ ...novoLote, pagamentoImediato: true })}
+                  className={`rounded-lg border p-2.5 text-xs font-medium transition-colors ${novoLote.pagamentoImediato ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400' : 'border-border text-foreground hover:bg-muted'}`}
+                >
+                  À vista (baixa o Caixa agora)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNovoLote({ ...novoLote, pagamentoImediato: false })}
+                  className={`rounded-lg border p-2.5 text-xs font-medium transition-colors ${!novoLote.pagamentoImediato ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400' : 'border-border text-foreground hover:bg-muted'}`}
+                >
+                  A prazo (Contas a Pagar)
+                </button>
+              </div>
+              {!novoLote.pagamentoImediato && (
+                <div className="space-y-2">
+                  <Label>Vencimento</Label>
+                  <Input type="date" value={novoLote.dataVencimento} onChange={e => setNovoLote({ ...novoLote, dataVencimento: e.target.value })} />
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModalLoteAberto(false)}>Cancelar</Button>
+            <Button onClick={handleAdicionarLote} disabled={salvandoLote}>
+              {salvandoLote ? 'Salvando...' : 'Adicionar Lote'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

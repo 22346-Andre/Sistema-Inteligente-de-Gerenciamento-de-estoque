@@ -88,6 +88,7 @@ export default function Produtos() {
     codigoBarras: '',
     quantidadeMinima: '',
     quantidade: '',
+    dataValidade: '',
     precoVenda: '',
     precoCusto: '',
     categoria: '',
@@ -297,6 +298,7 @@ export default function Produtos() {
         // COALESCE do backend nunca cair pro precoCusto, zerando o
         // faturamento desse produto mesmo com vendas reais no período.
         precoVenda: novoProduto.precoVenda === '' ? null : Math.max(0, Number(novoProduto.precoVenda) || 0),
+        dataValidade: novoProduto.dataValidade || undefined,
         impostos: (novoProduto.impostos || []).map((imp: any) => ({
             ...imp, aliquota: Math.max(0, Number(imp.aliquota) || 0)
         }))
@@ -404,6 +406,10 @@ export default function Produtos() {
                   <div className="space-y-2">
                       <Label>Qtd Inicial</Label>
                       <Input className="bg-background" type="number" min="0" onKeyDown={preventInvalidKeys} value={novoProduto.quantidade} onChange={e => handleNumberInput(e, setNovoProduto, 'quantidade')} />
+                  </div>
+                  <div className="space-y-2">
+                      <Label>Validade (opcional)</Label>
+                      <Input className="bg-background" type="date" value={novoProduto.dataValidade} onChange={e => setNovoProduto({ ...novoProduto, dataValidade: e.target.value })} />
                   </div>
                   <div className="space-y-2">
                       <Label>Unidade</Label>
