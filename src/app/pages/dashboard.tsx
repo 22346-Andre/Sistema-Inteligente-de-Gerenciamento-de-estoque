@@ -553,7 +553,7 @@ export default function Dashboard() {
                       <p className="font-bold text-sm text-orange-900 dark:text-orange-100 truncate max-w-[150px]">{produto.nome}</p>
                       <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">Qtd: <span className="font-black text-red-600 dark:text-red-400">{produto.quantidade}</span></p>
                     </div>
-                    <Link to={`/scanner?produto=${encodeURIComponent(produto.codigoBarras)}`}>
+                    <Link to={`/produtos/${produto.id}?entrada=1`}>
                       <Button size="sm" variant="outline" className="border-orange-300 dark:border-orange-500 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 h-8">
                         Repor
                       </Button>

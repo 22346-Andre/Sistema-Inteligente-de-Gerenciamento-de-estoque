@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import { useSearchParams } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -137,9 +136,6 @@ export default function ScannerPDV() {
   const [fiadoTelefone, setFiadoTelefone] = useState('');
   const [fiadoPendente, setFiadoPendente] = useState<{ itens: ItemCarrinho[]; total: number } | null>(null);
 
-  // NAVEGAÇÃO INTELIGENTE: lê ?produto=<codigoBarras> vindo do botão "Repor" do Dashboard
-  const [searchParams, setSearchParams] = useSearchParams();
-
   useEffect(() => {
     carregarProdutos();
     carregarHistorico();
@@ -194,23 +190,6 @@ export default function ScannerPDV() {
     }
   };
 
-  // Assim que o catálogo carregar, se veio um produto via URL (?produto=...),
-  // pré-carrega ele no carrinho automaticamente pra reposição.
-  useEffect(() => {
-    const codigoParam = searchParams.get('produto');
-    if (!codigoParam || produtos.length === 0) return;
-
-    const produtoEncontrado = produtos.find(p => p.codigoBarras === codigoParam);
-    if (produtoEncontrado) {
-      adicionarAoCarrinho(produtoEncontrado);
-      toast.success(`${produtoEncontrado.nome} pré-carregado para reposição.`);
-    } else {
-      toast.error(`Produto do código ${codigoParam} não encontrado.`);
-    }
-    setSearchParams({}, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [produtos]);
- 
   const carregarProdutos = async () => {
     try {
       setProdutos(await produtoService.listarTodos());
@@ -286,10 +265,8 @@ export default function ScannerPDV() {
     setCarrinho(prev => {
       const existente = prev.find(item => item.produto.id === produto.id);
 
-      // 🟢 CORREÇÃO: sem trava de estoque máximo aqui. O mesmo carrinho serve
-      // tanto para Entrada (reposição) quanto para Venda, e a reposição
-      // precisa poder somar ao estoque livremente, mesmo com saldo positivo.
-      // Quem valida estoque insuficiente pra VENDA é o handleFinalizar('SAIDA').
+      // 🟢 CORREÇÃO: sem trava de estoque máximo aqui. Quem valida estoque
+      // insuficiente pra VENDA é o handleFinalizar('SAIDA').
       if (existente) {
         toast.success(`${produto.nome} — quantidade atualizada.`);
         return prev.map(item => item.produto.id === produto.id ? { ...item, quantidade: item.quantidade + 1 } : item);

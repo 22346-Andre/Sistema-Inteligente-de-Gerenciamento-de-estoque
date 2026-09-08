@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router';
+import { useParams, useSearchParams, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -20,6 +20,7 @@ const formatBRL = (valor: number) =>
 
 export default function ProdutoDetalhes() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [produto, setProduto] = useState<any>(null);
   const [movimentacoes, setMovimentacoes] = useState<any[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
@@ -50,6 +51,17 @@ export default function ProdutoDetalhes() {
   useEffect(() => {
     carregarDados();
   }, [id]);
+
+  // NAVEGAÇÃO INTELIGENTE: se veio do botão "Repor" do Dashboard
+  // (?entrada=1), já abre o modal "Adicionar Lote" direto pro operador
+  // não precisar clicar de novo.
+  useEffect(() => {
+    if (searchParams.get('entrada') === '1') {
+      setModalLoteAberto(true);
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const carregarDados = async () => {
     try {
