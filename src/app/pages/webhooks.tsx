@@ -18,12 +18,13 @@ import {
 import { toast } from 'sonner';
 import api from '../services/api';
 import { InstrucoesButton } from '../components/InstrucoesButton';
-
+import { useAuth } from '../contexts/auth-context';
+ 
 interface EmpresaWebhook {
   id: number;
   webhookSecret?: string;
 }
-
+ 
 const CORPO_EXEMPLO = `{
   "origem": "MERCADO_LIVRE",
   "idPedido": "123456",
@@ -31,29 +32,41 @@ const CORPO_EXEMPLO = `{
     { "codigoBarras": "7891234567890", "quantidade": 2 }
   ]
 }`;
-
+ 
 export default function Webhooks() {
+  const { user } = useAuth();
+  const podeVerSegredo = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const [empresa, setEmpresa] = useState<EmpresaWebhook | null>(null);
   const [loading, setLoading] = useState(true);
   const [regenerando, setRegenerando] = useState(false);
   const [segredoVisivel, setSegredoVisivel] = useState(false);
-
+ 
   useEffect(() => {
     carregarEmpresa();
   }, []);
-
+ 
   const carregarEmpresa = async () => {
     try {
       setLoading(true);
       const response = await api.get('/empresas/minha-empresa');
-      setEmpresa(response.data);
+      const dadosEmpresa: EmpresaWebhook = response.data;
+      // O segredo não vem mais em /minha-empresa: só ADMIN/SUPER_ADMIN lê, em endpoint próprio.
+      if (podeVerSegredo) {
+        try {
+          const segredo = await api.get('/empresas/minha-empresa/webhook-secret');
+          dadosEmpresa.webhookSecret = segredo.data.webhookSecret;
+        } catch {
+          // sem permissão ou falha pontual: a tela abre normalmente, só sem o segredo
+        }
+      }
+      setEmpresa(dadosEmpresa);
     } catch (error) {
       toast.error('Erro ao carregar os dados da empresa.');
     } finally {
       setLoading(false);
     }
   };
-
+ 
   const handleRegenerarSegredo = async () => {
     const jaTemSegredo = !!empresa?.webhookSecret;
     if (jaTemSegredo && !window.confirm(
@@ -61,7 +74,7 @@ export default function Webhooks() {
     )) {
       return;
     }
-
+ 
     try {
       setRegenerando(true);
       const response = await api.put('/empresas/minha-empresa/webhook-secret');
@@ -74,12 +87,12 @@ export default function Webhooks() {
       setRegenerando(false);
     }
   };
-
+ 
   const copiarParaAreaDeTransferencia = (texto: string, label: string) => {
     navigator.clipboard.writeText(texto);
     toast.success(`${label} copiado!`);
   };
-
+ 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -87,7 +100,7 @@ export default function Webhooks() {
       </div>
     );
   }
-
+ 
   if (!empresa) {
     return (
       <div className="text-center py-12 text-muted-foreground dark:text-gray-400">
@@ -95,9 +108,9 @@ export default function Webhooks() {
       </div>
     );
   }
-
+ 
   const urlWebhook = `${api.defaults.baseURL}/api/webhooks/vendas`;
-
+ 
   return (
     <div className="space-y-6 text-foreground dark:text-gray-100">
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
@@ -109,7 +122,8 @@ export default function Webhooks() {
         </div>
         <InstrucoesButton titulo="Como os Webhooks funcionam" label="Como funciona">
           <p>Não é preciso informar o ID da sua empresa no JSON — o sistema já sabe quem é você a partir do cabeçalho <code>X-Webhook-Secret</code>, com mais segurança.</p>
-          <p><code>codigoBarras</code> precisa bater com um produto já cadastrado no SmartStock. A requisição sempre retorna sucesso (200), mesmo se algum item da venda não puder ser processado (produto não encontrado ou estoque insuficiente) — os demais itens da mesma venda continuam sendo processados normalmente, e você recebe um alerta dentro do sistema avisando qual item falhou e por quê, pra você não precisar ficar monitorando logs.</p>
+          <p><code>codigoBarras</code> precisa bater com um produto já cadastrado no SmartStock. A requisição sempre retorna sucesso (200), mesmo se algum item da venda não puder ser processado (produto não encontrado ou estoque i
+nsuficiente) — os demais itens da mesma venda continuam sendo processados normalmente, e você recebe um alerta dentro do sistema avisando qual item falhou e por quê, pra você não precisar ficar monitorando logs.</p>
           <div className="bg-blue-500/10 dark:bg-blue-500/15 border border-blue-500/20 dark:border-blue-500/30 text-blue-800 dark:text-blue-300 rounded-md p-3 flex gap-2">
             <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
             <p>Cada baixa de estoque feita pelo webhook aparece no histórico de movimentações do produto, com o motivo "Venda Externa" — dá pra auditar depois igual qualquer outra venda, na tela de detalhes de cada produto.</p>
@@ -120,7 +134,7 @@ export default function Webhooks() {
           </div>
         </InstrucoesButton>
       </div>
-
+ 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ================= SEGREDO ================= */}
         <Card className="lg:col-span-1 bg-card dark:bg-gray-800 border-border dark:border-gray-700 shadow-sm h-fit">
@@ -151,7 +165,7 @@ export default function Webhooks() {
                 Nenhum segredo gerado ainda. Gere um antes de configurar qualquer integração — sem ele, toda requisição é rejeitada.
               </div>
             )}
-
+ 
             <Button
               type="button"
               variant="outline"
@@ -166,7 +180,7 @@ export default function Webhooks() {
                 <><RefreshCw className="h-4 w-4 mr-2" /> {empresa.webhookSecret ? 'Gerar novo segredo' : 'Gerar segredo'}</>
               )}
             </Button>
-
+ 
             {empresa.webhookSecret && (
               <p className="text-xs text-muted-foreground dark:text-gray-400 flex items-start gap-1.5">
                 <Info className="h-3 w-3 shrink-0 mt-0.5" /> Gerar um novo invalida o atual na hora — qualquer integração já configurada vai parar de funcionar até você atualizar o segredo lá também.
@@ -174,7 +188,7 @@ export default function Webhooks() {
             )}
           </CardContent>
         </Card>
-
+ 
         {/* ================= INSTRUÇÕES ================= */}
         <Card className="lg:col-span-2 bg-card dark:bg-gray-800 border-border dark:border-gray-700 shadow-sm">
           <CardHeader>
@@ -198,7 +212,7 @@ export default function Webhooks() {
                 </Button>
               </div>
             </div>
-
+ 
             <div>
               <p className="text-muted-foreground dark:text-gray-400 mb-1.5 flex items-center gap-1.5">
                 <span className="flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">2</span>
@@ -209,13 +223,14 @@ export default function Webhooks() {
                   X-Webhook-Secret: {empresa.webhookSecret || '(gere um segredo ao lado primeiro)'}
                 </code>
                 {empresa.webhookSecret && (
-                  <Button type="button" size="icon" variant="outline" onClick={() => copiarParaAreaDeTransferencia(`X-Webhook-Secret: ${empresa.webhookSecret}`, 'Cabeçalho')} className="dark:border-gray-700 dark:hover:bg-gray-700">
+                  <Button type="button" size="icon" variant="outline" onClick={() => copiarParaAreaDeTransferencia(`X-Webhook-Secret: ${empresa.webhookSecret}`, 'Cabeçalho')} className="dark:border-gray-700 dark:hover:bg-gray-700"
+>
                     <Copy className="h-4 w-4" />
                   </Button>
                 )}
               </div>
             </div>
-
+ 
             <div>
               <p className="text-muted-foreground dark:text-gray-400 mb-1.5 flex items-center gap-1.5">
                 <span className="flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">3</span>
