@@ -59,6 +59,10 @@ interface Sugestao {
   giroVendasLabel: string;     // "Lento" | "Moderado" | "Rápido"
   prazoEntregaDias: number;
   prazoEntregaLabel: string;   // "Rápido" | "Aceitável" | "Demorado"
+  urgenciaOrigem?: 'RUPTURA' | 'FUZZY'; // RUPTURA = botão de pânico (estoque zerado de item classe A/B)
+  classeAbc?: string | null;
+  consumoDiarioMedio?: number;          // un./dia, média dos últimos 30 dias
+  quantidadeSugeridaMotivo?: string;    // explica de onde veio a quantidade sugerida
 }
 
 const formatBRL = (valor: number) =>
@@ -522,6 +526,9 @@ export default function SugestoesCompra() {
                                 <li>📦 Estoque: <b className="text-white">{sugestao.nivelEstoqueLabel}</b> ({sugestao.quantidadeAtual} un.)</li>
                                 <li>🔄 Giro: <b className="text-white">{sugestao.giroVendasLabel}</b> ({sugestao.giroVendas} un./mês)</li>
                                 <li>🚚 Fornecedor: <b className="text-white">{sugestao.prazoEntregaLabel}</b> ({sugestao.prazoEntregaDias} dias)</li>
+                                {sugestao.urgenciaOrigem === 'RUPTURA' && (
+                                  <li>🚨 <b className="text-white">Ruptura:</b> item classe {sugestao.classeAbc} sem estoque — prioridade elevada.</li>
+                                )}
                               </ul>
                             </div>
                           </div>
@@ -529,7 +536,18 @@ export default function SugestoesCompra() {
 
                         <TableCell className="font-medium">{sugestao.nomeProduto}</TableCell>
                         <TableCell className="text-right font-medium text-red-600">{sugestao.quantidadeAtual}</TableCell>
-                        <TableCell className="text-right font-bold text-blue-600">{sugestao.quantidadeSugerida}</TableCell>
+                        <TableCell className="text-right font-bold text-blue-600">
+                          {/* Tooltip — "Por que essa quantidade?" */}
+                          <div className="relative group inline-block cursor-help">
+                            {sugestao.quantidadeSugerida}
+                            {sugestao.quantidadeSugeridaMotivo && (
+                              <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute z-20 right-0 top-full mt-2 w-64 rounded-lg bg-gray-900 text-white text-xs font-normal text-left p-3 shadow-lg pointer-events-none">
+                                <p className="font-semibold mb-1.5">Por que essa quantidade?</p>
+                                <p className="text-gray-200">{sugestao.quantidadeSugeridaMotivo}</p>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right font-medium">{formatBRL(sugestao.valorTotal)}</TableCell>
                       </TableRow>
                     ))}

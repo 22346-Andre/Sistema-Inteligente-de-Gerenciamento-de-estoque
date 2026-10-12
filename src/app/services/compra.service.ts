@@ -13,6 +13,10 @@ export interface SugestaoCompraDTO {
   quantidadeSugerida: number;
   valorUnitario: number;
   valorTotal: number;
+  urgenciaOrigem?: 'RUPTURA' | 'FUZZY'; // RUPTURA = botão de pânico (estoque zerado de item classe A/B)
+  classeAbc?: string | null;
+  consumoDiarioMedio?: number;          // un./dia, média dos últimos 30 dias
+  quantidadeSugeridaMotivo?: string;    // explica de onde veio a quantidade sugerida
 }
 
 export const compraService = {
