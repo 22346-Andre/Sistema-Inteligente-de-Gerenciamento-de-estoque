@@ -1,12 +1,41 @@
 import axios from 'axios';
 import { toast } from 'sonner';
 
-const API_BASE_URL = 'https://smartstock-backend-j7em.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+if (!API_BASE_URL) {
+  throw new Error('VITE_API_BASE_URL precisa estar configurada para iniciar a aplicação.');
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
+
+function readTokenFromStorage(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) return storedToken;
+  } catch {
+    // Ignora falha de leitura do localStorage em navegadores restritivos.
+  }
+
+  try {
+    const cookie = document.cookie
+      .split('; ')
+      .find((entry) => entry.startsWith('token=') || entry.startsWith('access_token='));
+
+    if (!cookie) return null;
+
+    const [, rawValue] = cookie.split('=');
+    return rawValue ? decodeURIComponent(rawValue) : null;
+  } catch {
+    return null;
+  }
+}
 
 // Utilitário único — reaproveite em todas as páginas em vez de reimplementar
 export function extrairMensagemErro(error: any, fallback = 'Erro ao processar requisição.'): string {
@@ -27,8 +56,10 @@ export function extrairMensagemErro(error: any, fallback = 'Erro ao processar re
 }
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  const token = readTokenFromStorage();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 }, (error) => Promise.reject(error));
 

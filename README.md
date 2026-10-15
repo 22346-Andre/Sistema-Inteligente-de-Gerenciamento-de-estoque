@@ -77,13 +77,11 @@ Gera os arquivos estáticos otimizados em `dist/`, prontos para deploy (Vercel, 
 
 ### Configurando a URL da API
 
-A URL base da API está definida em `src/app/services/api.ts`:
+O desenvolvimento local usa `VITE_API_BASE_URL` definido em `.env.development` (por padrão, `http://localhost:8080`). A aplicação não usa fallback para a API de produção: configure a variável antes de iniciar ou compilar.
 
-```ts
-const API_BASE_URL = 'https://smartstock-backend-j7em.onrender.com';
-```
+No Vercel, configure `VITE_API_BASE_URL` em **Settings > Environment Variables** para cada ambiente de deploy. Para produção, use a URL HTTPS do backend de produção; configure Preview com o backend de homologação quando disponível. Mantenha a origem do backend alinhada à diretiva `connect-src` da CSP em `vercel.json`.
 
-Para apontar para um backend local durante o desenvolvimento, altere esse valor para `http://localhost:8080` (ou a porta configurada no backend).
+Execute `npm run typecheck` para a checagem TypeScript e `npm test` para os testes do frontend.
 
 ---
 
@@ -108,7 +106,7 @@ src/
 
 ## 🔐 Autenticação
 
-O login retorna um token JWT, armazenado no `localStorage` e enviado automaticamente em toda requisição subsequente via header `Authorization: Bearer <token>` (configurado nos interceptors do Axios em `services/api.ts`). O contexto `AuthContext` expõe o estado de autenticação para toda a aplicação e trata a expiração de sessão redirecionando para a tela de login.
+O login retorna um token JWT, atualmente armazenado no `localStorage` e enviado em `Authorization: Bearer <token>`. Isso mantém a sessão acessível a scripts da página e, portanto, não elimina o risco de XSS. A migração para cookie `HttpOnly` precisa ser feita junto ao backend, incluindo `Secure`/`SameSite`, CORS com credenciais e proteção CSRF; não é possível tornar um cookie `HttpOnly` apenas pelo frontend. O `AuthContext` valida os dados persistidos e remove sessões corrompidas.
 
 ---
 

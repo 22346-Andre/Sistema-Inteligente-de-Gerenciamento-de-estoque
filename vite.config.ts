@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -23,5 +23,8 @@ export default defineConfig({
   // 🚨 PLANO B: Forçando o React a rodar na porta 3000
   server: {
     port: 3000,
-  }
+  },
+  test: {
+    environment: 'jsdom',
+  },
 })

@@ -9,6 +9,16 @@ interface User {
   role?: string; 
 }
 
+function isUser(value: unknown): value is User {
+  if (!value || typeof value !== 'object') return false;
+  const user = value as Record<string, unknown>;
+  return typeof user.id === 'string'
+    && typeof user.nome === 'string'
+    && typeof user.email === 'string'
+    && typeof user.nomeFantasia === 'string'
+    && (user.role === undefined || typeof user.role === 'string');
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -36,6 +46,32 @@ interface CadastroData {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function readStoredUser(): User | null {
+  try {
+    const savedUser = localStorage.getItem('user');
+    if (!savedUser) return null;
+
+    const parsedUser: unknown = JSON.parse(savedUser);
+    if (isUser(parsedUser)) return parsedUser;
+  } catch {
+    // Ignora sessão inválida e limpa logo em seguida.
+  }
+
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  return null;
+}
+
+function clearSessionStorage() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('session');
+
+  ['token', 'access_token', 'auth_token'].forEach((cookieName) => {
+    document.cookie = `${cookieName}=; Max-Age=0; path=/; SameSite=Lax`;
+  });
+}
+
 // 👇 OLHA O AuthProvider AQUI! Tudo o que rege o login fica dentro dele.
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -43,13 +79,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 🔄 Recupera a sessão ao atualizar a página (F5)
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
-    
-    if (savedUser && token) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    const bootstrapSession = async () => {
+      try {
+        const savedUser = readStoredUser();
+        if (savedUser) {
+          setUser(savedUser);
+          return;
+        }
+
+        const hasCookieSession = document.cookie.includes('access_token=') || document.cookie.includes('token=');
+        if (hasCookieSession) {
+          const dadosReais = await authService.getMe();
+          const userReal: User = {
+            id: String(dadosReais.id),
+            nome: dadosReais.nome,
+            email: dadosReais.email,
+            nomeFantasia: dadosReais.empresa?.nomeFantasia || 'Minha Empresa',
+            role: dadosReais.perfil || 'USER',
+          };
+
+          setUser(userReal);
+          localStorage.setItem('user', JSON.stringify(userReal));
+          return;
+        }
+      } catch {
+        clearSessionStorage();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void bootstrapSession();
   }, []);
 
   // 🔐 Função de Login Normal
@@ -159,8 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 🚪 Função de Logout
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearSessionStorage();
     setUser(null);
   };
 

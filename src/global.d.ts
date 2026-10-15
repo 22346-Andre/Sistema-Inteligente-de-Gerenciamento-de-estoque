@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 // src/global.d.ts
 import 'react';
 

@@ -8,7 +8,7 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()" },
         {
-          "key": "Content-Security-Policy-Report-Only",
+          "key": "Content-Security-Policy",
           "value": "default-src 'self'; script-src 'self' https://accounts.google.com https://vlibras.gov.br; style-src 'self' 'unsafe-inline' https://accounts.google.com https://vlibras.gov.br; img-src 'self' data: blob: https://vlibras.gov.br https://*.googleusercontent.com https://accounts.google.com; font-src 'self' data: https://vlibras.gov.br; connect-src 'self' https://smartstock-backend-j7em.onrender.com https://brasilapi.com.br https://accounts.google.com https://vlibras.gov.br; frame-src https://accounts.google.com https://vlibras.gov.br; media-src 'self' blob: https://vlibras.gov.br; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
         }
       ]
