@@ -640,9 +640,9 @@ export default function Produtos() {
                   return (
                     <TableRow key={produto.id} className="hover:bg-muted/50">
                       <TableCell>
-                        <div className="flex items-center gap-2" title={estoqueBaixo ? `Estoque abaixo do mínimo! (mín: ${estoqueMinimo})` : undefined}>
+                        <div className="flex min-w-0 items-center gap-2" title={estoqueBaixo ? `Estoque abaixo do mínimo! (mín: ${estoqueMinimo})` : undefined}>
                           {estoqueBaixo && <AlertCircle className="h-4 w-4 text-destructive shrink-0" />}
-                          <Link to={`/produtos/${produto.id}`} className="font-medium text-foreground hover:underline">
+                          <Link to={`/produtos/${produto.id}`} title={produto.nome} className="max-w-[260px] truncate font-medium text-foreground hover:underline">
                             {produto.nome}
                           </Link>
                         </div>

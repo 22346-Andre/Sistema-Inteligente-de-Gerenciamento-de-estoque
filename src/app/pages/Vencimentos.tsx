@@ -16,6 +16,7 @@ import type { AlertaVencimento } from '../services/produto.service';
 export default function Vencimentos() {
   const [alertas, setAlertas] = useState<AlertaVencimento[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erroCarregamento, setErroCarregamento] = useState(false);
   const [dias, setDias] = useState(30);
 
   useEffect(() => {
@@ -29,7 +30,9 @@ export default function Vencimentos() {
       // já vencidos primeiro, depois quem vence mais cedo
       data.sort((a, b) => new Date(a.dataValidade).getTime() - new Date(b.dataValidade).getTime());
       setAlertas(data);
+      setErroCarregamento(false);
     } catch (e) {
+      setErroCarregamento(true);
       toast.error('Erro ao carregar os alertas de vencimento.');
     } finally {
       setLoading(false);
@@ -43,8 +46,8 @@ export default function Vencimentos() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <AlertTriangle className="h-6 w-6 text-amber-500" /> Vencimentos
@@ -52,7 +55,7 @@ export default function Vencimentos() {
           <p className="text-muted-foreground">Lotes vencidos ou perto de vencer, em todos os produtos.</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {[15, 30, 60, 90].map((opcao) => (
             <Button
               key={opcao}
@@ -71,6 +74,11 @@ export default function Vencimentos() {
         <CardContent>
           {loading ? (
             <div className="text-center py-12 text-muted-foreground">Carregando...</div>
+          ) : erroCarregamento ? (
+            <div role="alert" className="py-12 text-center text-muted-foreground">
+              <p className="mb-3">Não foi possível verificar os vencimentos.</p>
+              <Button variant="outline" onClick={carregar}>Tentar novamente</Button>
+            </div>
           ) : alertas.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground bg-muted rounded-lg border border-border">
               Nenhum lote vencendo nos próximos {dias} dias. 🎉

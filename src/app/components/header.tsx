@@ -26,6 +26,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const { toggleListening, isListening, isSupported } = useVoiceCommand();
   
   const [alertas, setAlertas] = useState<Produto[]>([]);
+  const [erroAlertas, setErroAlertas] = useState(false);
 
   useEffect(() => {
     carregarAlertas();
@@ -35,14 +36,16 @@ export function Header({ onMenuClick }: HeaderProps) {
     try {
       const data = await produtoService.listarCriticos();
       setAlertas(data);
+      setErroAlertas(false);
     } catch (error) {
+      setErroAlertas(true);
       console.error("Erro ao carregar alertas de estoque", error);
     }
   };
 
   return (
     <header className="h-16 border-b bg-card border-border px-4 flex items-center justify-between sticky top-0 z-40">
-      <div className="flex items-center gap-4">
+      <div className="flex min-w-0 items-center gap-4">
         <Button
           variant="ghost"
           size="icon"
@@ -53,12 +56,12 @@ export function Header({ onMenuClick }: HeaderProps) {
         </Button>
         
         {/* LOGO */}
-        <div className="flex items-center gap-3">
-          <div className="bg-primary p-2 rounded-xl shadow-sm flex items-center justify-center">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0 bg-primary p-2 rounded-xl shadow-sm flex items-center justify-center">
             <Store className="h-5 w-5 text-primary-foreground" />
           </div>
-          <div className="hidden md:block flex-col">
-            <h2 className="font-extrabold text-xl text-foreground leading-none">
+          <div className="hidden min-w-0 max-w-[min(32vw,20rem)] flex-col md:flex">
+            <h2 className="truncate font-extrabold text-xl text-foreground leading-none" title={user?.nomeFantasia || 'EstoqueMax'}>
               {user?.nomeFantasia || 'EstoqueMax'}
             </h2>
             <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-1">
@@ -116,10 +119,17 @@ export function Header({ onMenuClick }: HeaderProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80 bg-popover text-popover-foreground border-border">
-            <DropdownMenuLabel>Notificações ({alertas.length})</DropdownMenuLabel>
+            <DropdownMenuLabel>
+              {erroAlertas ? 'Notificações (indisponíveis)' : `Notificações (${alertas.length})`}
+            </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-border" />
             <div className="max-h-96 overflow-y-auto">
-              {alertas.length === 0 ? (
+              {erroAlertas ? (
+                <div className="p-4 text-center">
+                  <p role="alert" className="text-sm text-muted-foreground">Não foi possível verificar os alertas de estoque.</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={carregarAlertas}>Tentar novamente</Button>
+                </div>
+              ) : alertas.length === 0 ? (
                 <div className="p-6 text-center">
                   <p className="text-sm font-medium text-green-500">Tudo em dia! ✅</p>
                   <p className="text-xs text-muted-foreground mt-1">Nenhum produto com estoque crítico.</p>
@@ -130,7 +140,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                     <div className="flex items-start gap-3">
                       <AlertTriangle className="h-4 w-4 text-amber-500 mt-1 flex-shrink-0" />
                       <div className="flex flex-col gap-1">
-                        <p className="text-sm font-medium text-foreground">Atenção: {produto.nome}</p>
+                        <p className="max-w-[240px] break-words text-sm font-medium text-foreground" title={produto.nome}>Atenção: {produto.nome}</p>
                         <p className="text-xs text-muted-foreground">
                           Restam apenas <span className="font-bold text-destructive">{produto.quantidade}</span> no estoque!
                         </p>
@@ -150,7 +160,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold shadow-inner">
                 {user?.nome ? user.nome.charAt(0).toUpperCase() : 'U'}
               </div>
-              <span className="hidden md:inline font-medium text-foreground">{user?.nome}</span>
+              <span className="hidden max-w-[140px] truncate font-medium text-foreground md:inline" title={user?.nome}>{user?.nome}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48 bg-popover text-popover-foreground border-border">

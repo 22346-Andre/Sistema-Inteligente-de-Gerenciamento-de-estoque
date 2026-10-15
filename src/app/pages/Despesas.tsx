@@ -30,6 +30,7 @@ export default function Despesas() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erroCarregamento, setErroCarregamento] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   const [modalAberto, setModalAberto] = useState(false);
@@ -41,7 +42,9 @@ export default function Despesas() {
 
   useEffect(() => {
     carregarDados();
-    fornecedorService.listarTodos().then(setFornecedores).catch(() => {});
+    fornecedorService.listarTodos()
+      .then(setFornecedores)
+      .catch(() => toast.error('Não foi possível carregar fornecedores para o formulário de despesas.'));
   }, []);
 
   const carregarDados = async () => {
@@ -49,7 +52,9 @@ export default function Despesas() {
     try {
       const lista = await despesaService.listar();
       setDespesas(lista);
+      setErroCarregamento(false);
     } catch (e) {
+      setErroCarregamento(true);
       toast.error('Erro ao carregar as despesas.');
     } finally {
       setLoading(false);
@@ -142,9 +147,9 @@ export default function Despesas() {
           <Wallet className="h-4 w-4 text-red-600 dark:text-red-400" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-black text-foreground dark:text-white">R$ {totalEmAberto.toFixed(2)}</div>
+          <div className="text-2xl font-black text-foreground dark:text-white">{erroCarregamento ? '—' : `R$ ${totalEmAberto.toFixed(2)}`}</div>
           <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">
-            {despesas.filter((d) => d.status !== 'PAGO').length} conta(s) ainda não paga(s)
+            {erroCarregamento ? 'Não foi possível consultar as contas em aberto.' : `${despesas.filter((d) => d.status !== 'PAGO').length} conta(s) ainda não paga(s)`}
           </p>
         </CardContent>
       </Card>
@@ -169,6 +174,13 @@ export default function Despesas() {
               <TableBody>
                 {loading ? (
                   <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                ) : erroCarregamento ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-8 text-center">
+                      <p role="alert" className="mb-3 text-sm text-muted-foreground">Não foi possível carregar as despesas.</p>
+                      <Button variant="outline" size="sm" onClick={carregarDados}>Tentar novamente</Button>
+                    </TableCell>
+                  </TableRow>
                 ) : despesas.length === 0 ? (
                   <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhuma despesa registrada ainda.</TableCell></TableRow>
                 ) : (

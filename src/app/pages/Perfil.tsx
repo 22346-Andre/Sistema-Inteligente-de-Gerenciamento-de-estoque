@@ -89,7 +89,7 @@ export default function Perfil() {
                   {user?.nome ? user.nome.charAt(0).toUpperCase() : 'U'}
                 </span>
               </div>
-              <h2 className="text-xl font-bold text-foreground">{user?.nome}</h2>
+              <h2 className="max-w-full break-words text-xl font-bold text-foreground" title={user?.nome}>{user?.nome}</h2>
               
               <div className="mt-4 w-full space-y-3">
                 <div className="flex items-center gap-3 text-sm text-gray-600 bg-muted p-3 rounded-lg">
@@ -102,7 +102,7 @@ export default function Perfil() {
                 </div>
                 <div className="flex items-center gap-3 text-sm text-gray-600 bg-muted p-3 rounded-lg">
                   <Building className="h-4 w-4 text-purple-500" />
-                  <span className="font-medium text-purple-700">{user?.nomeFantasia || 'Empresa Vinculada'}</span>
+                  <span className="min-w-0 break-words font-medium text-purple-700" title={user?.nomeFantasia || 'Empresa Vinculada'}>{user?.nomeFantasia || 'Empresa Vinculada'}</span>
                 </div>
               </div>
             </CardContent>

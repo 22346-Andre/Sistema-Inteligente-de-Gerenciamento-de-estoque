@@ -23,7 +23,7 @@ Frontend do **SmartStock**, sistema de gestão inteligente de estoque, vendas e 
 - 🧠 **Sugestões de Compra** inteligentes, com cálculo de urgência combinando estoque, giro de vendas e prazo do fornecedor.
 - 👥 **Gestão de equipe** com perfis de acesso (Administrador / Caixa) e recuperação de senha por e-mail.
 - 🎨 **4 temas visuais**: claro, escuro, Dracula e alto contraste.
-- 📱 **PWA** — instalável na tela inicial do celular.
+- 📱 **PWA** — instalável na tela inicial do celular, com manifesto e ícone publicados em `public/`.
 
 ---
 

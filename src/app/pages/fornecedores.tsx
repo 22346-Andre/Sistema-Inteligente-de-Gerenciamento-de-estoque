@@ -737,7 +737,7 @@ export default function Fornecedores() {
                     const telefoneInfo = analisarTelefoneExibicao(fornecedor.telefone);
                     return (
                     <TableRow key={fornecedor.id} className="hover:bg-muted/40">
-                      <TableCell className="font-bold">{fornecedor.nome}</TableCell>
+                      <TableCell className="max-w-[220px] truncate font-bold" title={fornecedor.nome}>{fornecedor.nome}</TableCell>
                       <TableCell className="text-muted-foreground font-mono text-sm">{fornecedor.cnpj}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         <div className="space-y-1">
@@ -752,8 +752,9 @@ export default function Fornecedores() {
                             </div>
                           )}
                           {fornecedor.email && (
-                            <div className="flex items-center gap-1.5">
-                              <Mail className="h-3.5 w-3.5" /> {fornecedor.email}
+                            <div className="flex min-w-0 items-center gap-1.5" title={fornecedor.email}>
+                              <Mail className="h-3.5 w-3.5 shrink-0" />
+                              <span className="max-w-[200px] break-all">{fornecedor.email}</span>
                             </div>
                           )}
                           {!telefoneInfo.texto && !fornecedor.email && '—'}
@@ -763,7 +764,7 @@ export default function Fornecedores() {
                         {fornecedor.endereco ? (
                           <div className="flex items-start gap-1.5">
                             <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                            <span className="truncate">{fornecedor.endereco}</span>
+                            <span className="truncate" title={fornecedor.endereco}>{fornecedor.endereco}</span>
                           </div>
                         ) : (
                           '—'
@@ -772,7 +773,7 @@ export default function Fornecedores() {
                         {fornecedor.categoriasFornecidas && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
                             {fornecedor.categoriasFornecidas.split(',').map((cat) => cat.trim()).filter(Boolean).map((cat) => (
-                              <span key={cat} className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary">
+                              <span key={cat} className="max-w-full break-words px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary">
                                 {cat}
                               </span>
                             ))}

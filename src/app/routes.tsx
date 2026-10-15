@@ -1,27 +1,37 @@
+import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router';
 import { DashboardLayout } from './layouts/dashboard-layout';
-import Login from './pages/login';
-import Cadastro from './pages/cadastro';
-import EsqueciSenha from './pages/EsqueciSenha';
-import RedefinirSenha from './pages/RedefinirSenha';
-import Dashboard from './pages/dashboard';
-import Produtos from './pages/produtos';
-import ProdutoDetalhes from './pages/produto-detalhes';
-import Fornecedores from './pages/fornecedores';
-import Importacao from './pages/importacao';
-import Scanner from './pages/scanner';
-import Configuracoes from './pages/configuracoes';
-import Webhooks from './pages/webhooks';
-import SugestoesCompra from './pages/sugestoes-compra';
-import Relatorios from './pages/relatorios';
-import Perfil from './pages/Perfil';
-import Fiados from './pages/Fiados';
-import Despesas from './pages/Despesas';
-import Caixa from './pages/Caixa';
-import Vencimentos from './pages/Vencimentos';
-
-
 import { ProtectedRoute } from './components/ProtectedRoute';
+
+const Login = lazy(() => import('./pages/login'));
+const Cadastro = lazy(() => import('./pages/cadastro'));
+const EsqueciSenha = lazy(() => import('./pages/EsqueciSenha'));
+const RedefinirSenha = lazy(() => import('./pages/RedefinirSenha'));
+const Dashboard = lazy(() => import('./pages/dashboard'));
+const Produtos = lazy(() => import('./pages/produtos'));
+const ProdutoDetalhes = lazy(() => import('./pages/produto-detalhes'));
+const Fornecedores = lazy(() => import('./pages/fornecedores'));
+const Importacao = lazy(() => import('./pages/importacao'));
+const Scanner = lazy(() => import('./pages/scanner'));
+const Configuracoes = lazy(() => import('./pages/configuracoes'));
+const Webhooks = lazy(() => import('./pages/webhooks'));
+const SugestoesCompra = lazy(() => import('./pages/sugestoes-compra'));
+const Relatorios = lazy(() => import('./pages/relatorios'));
+const Perfil = lazy(() => import('./pages/Perfil'));
+const Fiados = lazy(() => import('./pages/Fiados'));
+const Despesas = lazy(() => import('./pages/Despesas'));
+const Caixa = lazy(() => import('./pages/Caixa'));
+const Vencimentos = lazy(() => import('./pages/Vencimentos'));
+
+const carregarPagina = (Pagina: LazyExoticComponent<ComponentType>) => (
+  <Suspense fallback={
+    <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground" role="status">
+      Carregando página...
+    </div>
+  }>
+    <Pagina />
+  </Suspense>
+);
 
 export const router = createBrowserRouter([
   // ==========================================
@@ -29,19 +39,19 @@ export const router = createBrowserRouter([
   // ==========================================
   {
     path: '/login',
-    element: <Login />
+    element: carregarPagina(Login)
   },
   {
     path: '/cadastro',
-    element: <Cadastro />
+    element: carregarPagina(Cadastro)
   },
   {
     path: '/esqueci-senha',
-    element: <EsqueciSenha />
+    element: carregarPagina(EsqueciSenha)
   },
   {
     path: '/redefinir-senha',
-    element: <RedefinirSenha />
+    element: carregarPagina(RedefinirSenha)
   },
   
   // ==========================================
@@ -60,56 +70,56 @@ export const router = createBrowserRouter([
           },
           {
             path: 'dashboard',
-            element: <Dashboard />
+            element: carregarPagina(Dashboard)
           },
           {
             path: 'produtos',
-            element: <Produtos />
+            element: carregarPagina(Produtos)
           },
           {
             path: 'produtos/:id',
-            element: <ProdutoDetalhes />
+            element: carregarPagina(ProdutoDetalhes)
           },
           {
             path: 'fornecedores',
-            element: <Fornecedores />
+            element: carregarPagina(Fornecedores)
           },
           {
             path: 'importacao',
-            element: <Importacao />
+            element: carregarPagina(Importacao)
           },
           {
             path: 'scanner',
-            element: <Scanner />
+            element: carregarPagina(Scanner)
           },
           {
             path: 'sugestoes-compra',
-            element: <SugestoesCompra />
+            element: carregarPagina(SugestoesCompra)
           },
           {
             path: 'relatorios',
-            element: <Relatorios />
+            element: carregarPagina(Relatorios)
           },
           {
             path: 'configuracoes',
-            element: <Configuracoes />
+            element: carregarPagina(Configuracoes)
           },
           
           {
             path: 'webhooks',
-            element: <Webhooks />
+            element: carregarPagina(Webhooks)
           },
           // 🚨 A nova rota de Perfil adicionada à catraca!
           {
             path: 'perfil',
-            element: <Perfil />
+            element: carregarPagina(Perfil)
           },
 
           
-          { path: 'fiados', element: <Fiados /> },
-          { path: 'despesas', element: <Despesas /> },
-          { path: 'caixa', element: <Caixa /> },
-          { path: 'vencimentos', element: <Vencimentos /> }
+          { path: 'fiados', element: carregarPagina(Fiados) },
+          { path: 'despesas', element: carregarPagina(Despesas) },
+          { path: 'caixa', element: carregarPagina(Caixa) },
+          { path: 'vencimentos', element: carregarPagina(Vencimentos) }
         ]
       }
     ]

@@ -95,10 +95,15 @@ export default function Dashboard() {
   });
  
   const [produtosBaixoEstoque, setProdutosBaixoEstoque] = useState<Produto[]>([]);
+  const [erroProdutosCriticos, setErroProdutosCriticos] = useState(false);
   const [todosProdutos, setTodosProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erroResumo, setErroResumo] = useState(false);
+  const [erroFinanceiro, setErroFinanceiro] = useState(false);
   
   const [acessoFinanceiroNegado, setAcessoFinanceiroNegado] = useState(false);
+  const [erroPerdas, setErroPerdas] = useState(false);
+  const [erroEstoqueMorto, setErroEstoqueMorto] = useState(false);
  
   // Estados para os dados REAIS do gráfico de perdas
   const [prejuizoTotal, setPrejuizoTotal] = useState(0);
@@ -129,7 +134,9 @@ export default function Dashboard() {
         totalProdutos: resumoGeral.totalProdutos,
         produtosCriticos: resumoGeral.produtosCriticos,
       }));
+      setErroResumo(false);
     } catch (error: any) {
+      setErroResumo(true);
       toast.error(extrairMensagemErro(error, 'Erro ao carregar o resumo do estoque.'));
     }
  
@@ -141,10 +148,12 @@ export default function Dashboard() {
         capitalImobilizado: financeiro.capitalImobilizado,
         giroEstoque: financeiro.giroEstoque,
       }));
+      setErroFinanceiro(false);
     } catch (error: any) {
       if (error.response && (error.response.status === 400 || error.response.status === 403)) {
         setAcessoFinanceiroNegado(true);
       } else {
+        setErroFinanceiro(true);
         toast.error(extrairMensagemErro(error, 'Erro ao carregar estatísticas financeiras.'));
       }
     }
@@ -152,12 +161,18 @@ export default function Dashboard() {
     try {
       const listaProdutos = await produtoService.listarTodos();
       setTodosProdutos(listaProdutos);
-    } catch (error) {}
- 
+    } catch (error) {
+      toast.error(extrairMensagemErro(error, 'Erro ao carregar os produtos do estoque.'));
+    }
+
     try {
       const produtosCriticos = await produtoService.listarCriticos();
       setProdutosBaixoEstoque(produtosCriticos);
-    } catch (error) {}
+      setErroProdutosCriticos(false);
+    } catch (error) {
+      setErroProdutosCriticos(true);
+      toast.error(extrairMensagemErro(error, 'Não foi possível verificar os produtos críticos.'));
+    }
  
     // Prejuízo por perdas (QUEBRA_PERDA) dos últimos 3 meses.
     try {
@@ -195,7 +210,11 @@ export default function Dashboard() {
  
       setPrejuizoTotal(totalJanela);
       setDadosGraficoPerdas(janela.map(({ chave, label }) => ({ mes: label, valor: perdasPorChave[chave] })));
-    } catch (error) {}
+      setErroPerdas(false);
+    } catch (error) {
+      setErroPerdas(true);
+      toast.error(extrairMensagemErro(error, 'Não foi possível carregar o gráfico de perdas.'));
+    }
  
     // Dinheiro Congelado: produtos parados há mais de N dias sem venda
     try {
@@ -205,9 +224,13 @@ export default function Dashboard() {
       const dias = resEstoqueMorto.data.diasConsiderados ?? 90;
       setDiasConsiderados(dias);
       setValorEditandoDias(String(dias));
+      setErroEstoqueMorto(false);
     } catch (error: any) {
       if (error.response && (error.response.status === 400 || error.response.status === 403)) {
         setAcessoEstoqueMortoNegado(true);
+      } else {
+        setErroEstoqueMorto(true);
+        toast.error(extrairMensagemErro(error, 'Não foi possível carregar os produtos sem giro.'));
       }
     }
  
@@ -276,13 +299,19 @@ export default function Dashboard() {
   const [criterioABC, setCriterioABC] = useCriterioAbc();
   const [curvaAbcItens, setCurvaAbcItens] = useState<Awaited<ReturnType<typeof dashboardService.obterCurvaABC>>>([]);
   const [carregandoABC, setCarregandoABC] = useState(false);
+  const [erroABC, setErroABC] = useState(false);
 
   useEffect(() => {
     if (acessoFinanceiroNegado || loading) return;
     setCarregandoABC(true);
+    setErroABC(false);
     dashboardService.obterCurvaABC(criterioABC, 90)
       .then(setCurvaAbcItens)
-      .catch(() => setCurvaAbcItens([]))
+      .catch((error) => {
+        setCurvaAbcItens([]);
+        setErroABC(true);
+        toast.error(extrairMensagemErro(error, 'Não foi possível carregar a Curva ABC.'));
+      })
       .finally(() => setCarregandoABC(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [criterioABC, acessoFinanceiroNegado, loading]);
@@ -311,13 +340,19 @@ export default function Dashboard() {
   // dois critérios de valor, faturamento e lucratividade, juntos).
   const [matrizAbcItens, setMatrizAbcItens] = useState<Awaited<ReturnType<typeof dashboardService.obterMatrizAbc>>>([]);
   const [carregandoMatriz, setCarregandoMatriz] = useState(false);
+  const [erroMatriz, setErroMatriz] = useState(false);
 
   useEffect(() => {
     if (acessoFinanceiroNegado || loading) return;
     setCarregandoMatriz(true);
+    setErroMatriz(false);
     dashboardService.obterMatrizAbc(90)
       .then(setMatrizAbcItens)
-      .catch(() => setMatrizAbcItens([]))
+      .catch((error) => {
+        setMatrizAbcItens([]);
+        setErroMatriz(true);
+        toast.error(extrairMensagemErro(error, 'Não foi possível carregar a matriz de produtos.'));
+      })
       .finally(() => setCarregandoMatriz(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acessoFinanceiroNegado, loading]);
@@ -358,7 +393,9 @@ export default function Dashboard() {
             {acessoFinanceiroNegado ? (
               <div className="flex items-center text-gray-400 mt-2"><Lock className="h-5 w-5 mr-2" /><span className="text-sm font-medium">Acesso Restrito</span></div>
             ) : (
-              <>
+              erroFinanceiro ? (
+                <div role="alert" className="text-sm text-muted-foreground">Dados financeiros indisponíveis.</div>
+              ) : <>
                 <div className="text-2xl font-black text-foreground dark:text-white">{formatBRL(stats.capitalImobilizado)}</div>
                 <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">Valor total em prateleira</p>
               </>
@@ -375,7 +412,9 @@ export default function Dashboard() {
             {acessoFinanceiroNegado ? (
               <div className="flex items-center text-gray-400 mt-2"><Lock className="h-5 w-5 mr-2" /><span className="text-sm font-medium">Acesso Restrito</span></div>
             ) : (
-              <>
+              erroFinanceiro ? (
+                <div role="alert" className="text-sm text-muted-foreground">Dados financeiros indisponíveis.</div>
+              ) : <>
                 <div className="text-2xl font-black text-foreground dark:text-white">{stats.giroEstoque}x</div>
                 <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">Giro nos últimos 30 dias</p>
               </>
@@ -391,8 +430,8 @@ export default function Dashboard() {
             <Package className="h-4 w-4 text-purple-600 dark:text-purple-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-foreground dark:text-white">{stats.totalProdutos}</div>
-            <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">Itens cadastrados</p>
+            <div className="text-2xl font-black text-foreground dark:text-white">{erroResumo ? '—' : stats.totalProdutos}</div>
+            <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">{erroResumo ? 'Resumo indisponível' : 'Itens cadastrados'}</p>
           </CardContent>
         </Card>
  
@@ -402,8 +441,8 @@ export default function Dashboard() {
             <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-red-600 dark:text-red-400">{stats.produtosCriticos}</div>
-            <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">Estoque crítico / baixo</p>
+            <div className="text-2xl font-black text-red-600 dark:text-red-400">{erroResumo ? '—' : stats.produtosCriticos}</div>
+            <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">{erroResumo ? 'Resumo indisponível' : 'Estoque crítico / baixo'}</p>
           </CardContent>
         </Card>
       </div>
@@ -462,7 +501,11 @@ export default function Dashboard() {
             </p>
           </CardHeader>
           <CardContent>
-            {carregandoABC ? (
+            {erroABC ? (
+              <div role="alert" className="flex items-center justify-center h-[220px] rounded bg-muted text-center text-sm text-muted-foreground">
+                Curva ABC indisponível. Tente alterar o critério ou recarregar a página.
+              </div>
+            ) : carregandoABC ? (
               <div className="flex items-center justify-center h-[220px] text-gray-400 bg-muted dark:bg-gray-900 rounded">Calculando...</div>
             ) : dadosGraficoABC.length > 0 ? (
               <>
@@ -510,6 +553,10 @@ export default function Dashboard() {
           <CardContent>
             {acessoFinanceiroNegado ? (
                <div className="flex items-center justify-center h-[220px] text-gray-400 bg-muted dark:bg-gray-900 rounded">Acesso Negado</div>
+            ) : erroPerdas ? (
+              <div role="alert" className="flex h-[220px] items-center justify-center rounded bg-muted px-4 text-center text-sm text-muted-foreground">
+                Não foi possível carregar os dados de perdas.
+              </div>
             ) : (
               <>
                 <ResponsiveContainer width="100%" height={170}>
@@ -541,7 +588,27 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
-              {produtosBaixoEstoque.length === 0 ? (
+              {erroProdutosCriticos ? (
+                <div role="alert" className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
+                  <p>Não foi possível verificar o estoque crítico.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        setErroProdutosCriticos(false);
+                        const produtosCriticos = await produtoService.listarCriticos();
+                        setProdutosBaixoEstoque(produtosCriticos);
+                      } catch (error) {
+                        setErroProdutosCriticos(true);
+                        toast.error(extrairMensagemErro(error, 'Não foi possível verificar os produtos críticos.'));
+                      }
+                    }}
+                  >
+                    Tentar novamente
+                  </Button>
+                </div>
+              ) : produtosBaixoEstoque.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground dark:text-gray-400">
                   <CheckCircle className="h-10 w-10 text-green-500 dark:text-green-400 mb-2" />
                   <p className="font-bold text-green-700 dark:text-green-400">Tudo sob controle!</p>
@@ -566,7 +633,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {!acessoFinanceiroNegado && produtosParadoxais.length > 0 && (
+      {!acessoFinanceiroNegado && (produtosParadoxais.length > 0 || carregandoMatriz || erroMatriz) && (
         <Card className="shadow-md border-t-4 border-t-violet-500 dark:bg-gray-800 dark:border-gray-700">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
@@ -613,16 +680,22 @@ export default function Dashboard() {
             </p>
           </CardHeader>
           <CardContent>
-            {carregandoMatriz ? (
+            {erroMatriz ? (
+              <div role="alert" className="flex min-h-[100px] items-center justify-center text-center text-sm text-muted-foreground">
+                Não foi possível carregar a matriz de produtos.
+              </div>
+            ) : carregandoMatriz ? (
               <div className="flex items-center justify-center h-[100px] text-gray-400">Calculando...</div>
             ) : (
               <div className="space-y-2 max-h-[260px] overflow-y-auto pr-2 custom-scrollbar">
-                {produtosParadoxais.map((item) => (
+                {produtosParadoxais.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">Nenhum produto com classificação divergente.</p>
+                ) : produtosParadoxais.map((item) => (
                   <div
                     key={item.produtoId}
-                    className="flex items-center justify-between text-sm bg-violet-50 dark:bg-gray-700/50 border border-violet-200 dark:border-gray-600 rounded-lg px-3 py-2"
+                    className="flex min-w-0 items-center justify-between gap-2 text-sm bg-violet-50 dark:bg-gray-700/50 border border-violet-200 dark:border-gray-600 rounded-lg px-3 py-2"
                   >
-                    <p className="font-semibold text-violet-900 dark:text-violet-100 truncate pr-2">{item.nomeProduto}</p>
+                    <p className="min-w-0 flex-1 truncate pr-2" title={item.nomeProduto}>{item.nomeProduto}</p>
                     <span
                       className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
                         item.quadrante === 'CAMPEAO_DE_VENDAS'
@@ -707,7 +780,11 @@ export default function Dashboard() {
             )}
           </CardHeader>
           <CardContent>
-            {estoqueMorto.length === 0 ? (
+            {erroEstoqueMorto ? (
+              <div role="alert" className="py-4 text-sm text-muted-foreground">
+                Não foi possível verificar quais produtos estão sem giro.
+              </div>
+            ) : estoqueMorto.length === 0 ? (
               <div className="flex items-center gap-2 text-green-700 dark:text-green-400 py-4">
                 <CheckCircle className="h-5 w-5 shrink-0" />
                 <p className="font-bold">Nenhum produto parado há mais de {diasConsiderados} dias. Estoque saudável!</p>
@@ -718,7 +795,7 @@ export default function Dashboard() {
                   Você tem <span className="font-black text-2xl text-cyan-600 dark:text-cyan-400">{formatBRL(totalCongelado)}</span> parados
                   {' '}em {estoqueMorto.length} produto{estoqueMorto.length !== 1 ? 's' : ''} que não {estoqueMorto.length !== 1 ? 'têm' : 'tem'} saída.
                   {itemMaisAntigo && (
-                    <> O pior caso é <strong>{itemMaisAntigo.nomeProduto}</strong>, {itemMaisAntigo.dataUltimaVendaLabel === 'Nunca vendeu' ? 'que nunca vendeu desde que foi cadastrado' : `parado ${itemMaisAntigo.dataUltimaVendaLabel}`}.</>
+                    <> O pior caso é <strong className="break-words" title={itemMaisAntigo.nomeProduto}>{itemMaisAntigo.nomeProduto}</strong>, {itemMaisAntigo.dataUltimaVendaLabel === 'Nunca vendeu' ? 'que nunca vendeu desde que foi cadastrado' : `parado ${itemMaisAntigo.dataUltimaVendaLabel}`}.</>
                   )}
                 </p>
  
@@ -726,10 +803,10 @@ export default function Dashboard() {
                   {estoqueMorto.slice(0, 6).map((item) => (
                     <div
                       key={item.produtoId}
-                      className="flex items-center justify-between text-sm bg-cyan-50 dark:bg-gray-700/50 border border-cyan-200 dark:border-gray-600 rounded-lg px-3 py-2"
+                      className="flex min-w-0 items-center justify-between gap-2 text-sm bg-cyan-50 dark:bg-gray-700/50 border border-cyan-200 dark:border-gray-600 rounded-lg px-3 py-2"
                     >
-                      <div className="truncate pr-2">
-                        <p className="font-semibold text-cyan-900 dark:text-cyan-100 truncate flex items-center gap-1">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <p className="flex items-center gap-1 truncate font-semibold text-cyan-900 dark:text-cyan-100" title={item.nomeProduto}>
                           {item.nomeProduto}
                           {item.margemAjustada && (
                             <span title="Margem original menor que 30% — o preço de queima foi travado no custo (lucro zero) pra não vender no prejuízo">
@@ -763,8 +840,3 @@ export default function Dashboard() {
   );
 }
  
-
-
-
-
-

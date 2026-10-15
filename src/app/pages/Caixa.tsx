@@ -31,6 +31,7 @@ export default function Caixa() {
   const [extrato, setExtrato] = useState<MovimentoCaixa[]>([]);
   const [saldo, setSaldo] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [erroCarregamento, setErroCarregamento] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   const [modalAberto, setModalAberto] = useState(false);
@@ -52,7 +53,9 @@ export default function Caixa() {
       ]);
       setExtrato(extratoResp);
       setSaldo(saldoResp);
+      setErroCarregamento(false);
     } catch (e) {
+      setErroCarregamento(true);
       toast.error('Erro ao carregar o caixa.');
     } finally {
       setLoading(false);
@@ -111,9 +114,9 @@ export default function Caixa() {
           <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-black text-foreground dark:text-white">R$ {saldo.toFixed(2)}</div>
+          <div className="text-2xl font-black text-foreground dark:text-white">{erroCarregamento ? '—' : `R$ ${saldo.toFixed(2)}`}</div>
           <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">
-            Somatório de todas as entradas menos todas as saídas desde o início
+            {erroCarregamento ? 'Não foi possível consultar o saldo.' : 'Somatório de todas as entradas menos todas as saídas desde o início'}
           </p>
         </CardContent>
       </Card>
@@ -137,6 +140,13 @@ export default function Caixa() {
               <TableBody>
                 {loading ? (
                   <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>
+                ) : erroCarregamento ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center">
+                      <p role="alert" className="mb-3 text-sm text-muted-foreground">Não foi possível carregar o extrato e o saldo.</p>
+                      <Button variant="outline" size="sm" onClick={carregarDados}>Tentar novamente</Button>
+                    </TableCell>
+                  </TableRow>
                 ) : extrato.length === 0 ? (
                   <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Nenhum lançamento ainda.</TableCell></TableRow>
                 ) : (
@@ -151,8 +161,8 @@ export default function Caixa() {
                           {ROTULOS_ORIGEM[mov.origem] || mov.origem}
                         </span>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground max-w-[260px] truncate">{mov.descricao || '—'}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{mov.usuarioNome || '—'}</TableCell>
+                      <TableCell className="max-w-[260px] truncate text-sm text-muted-foreground" title={mov.descricao || undefined}>{mov.descricao || '—'}</TableCell>
+                      <TableCell className="max-w-[180px] truncate text-sm text-muted-foreground" title={mov.usuarioNome || undefined}>{mov.usuarioNome || '—'}</TableCell>
                       <TableCell className={`text-right font-bold ${mov.tipo === 'ENTRADA' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                         {mov.tipo === 'ENTRADA' ? '+' : '-'} R$ {mov.valor.toFixed(2)}
                       </TableCell>

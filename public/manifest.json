@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "SmartStock - Gestão de Estoque",
+  "short_name": "SmartStock",
+  "description": "Gestão de estoque, vendas e fornecedores.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#030213",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

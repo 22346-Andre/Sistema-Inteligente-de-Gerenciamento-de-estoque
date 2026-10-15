@@ -27,6 +27,7 @@ export default function ContasReceber() {
   const [contas, setContas] = useState<ContaReceber[]>([]);
   const [sugestoes, setSugestoes] = useState<ContaReceber[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erroCarregamento, setErroCarregamento] = useState(false);
   const [termoBusca, setTermoBusca] = useState('');
   const [salvando, setSalvando] = useState(false);
 
@@ -61,7 +62,11 @@ export default function ContasReceber() {
 
   useEffect(() => {
     carregarDados();
-    produtoService.listarTodos().then(setCatalogoProdutos).catch(() => {});
+    produtoService.listarTodos()
+      .then(setCatalogoProdutos)
+      .catch((error) => {
+        console.error('Não foi possível carregar produtos para o autocomplete de contas a receber.', error);
+      });
 
     // 🆕 Atualiza a lista sozinho a cada 8s — assim, quando um cliente paga
     // um Pix da Delfinance (webhook confirma em segundos), o status "PAGO"
@@ -92,7 +97,9 @@ export default function ContasReceber() {
       ]);
       setContas(todas);
       setSugestoes(paraCobrar);
+      setErroCarregamento(false);
     } catch (e) {
+      setErroCarregamento(true);
       toast.error('Erro ao carregar as contas a receber.');
     } finally {
       setLoading(false);
@@ -110,6 +117,7 @@ export default function ContasReceber() {
       ]);
       setContas(todas);
       setSugestoes(paraCobrar);
+      setErroCarregamento(false);
     } catch (e) {
       // Silencioso de propósito: uma falha pontual de rede numa atualização
       // automática em segundo plano não deve incomodar o usuário com um toast.
@@ -268,7 +276,7 @@ export default function ContasReceber() {
         <div className="flex items-center gap-4">
           <div className="text-right hidden sm:block">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Total em aberto</p>
-            <p className="text-xl font-bold text-red-600 dark:text-red-400">R$ {totalEmAberto.toFixed(2)}</p>
+            <p className="text-xl font-bold text-red-600 dark:text-red-400">{erroCarregamento ? '—' : `R$ ${totalEmAberto.toFixed(2)}`}</p>
           </div>
           <Button onClick={() => setModalAberto(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
             <PlusCircle className="w-5 h-5 mr-2" /> Nova Conta
@@ -276,10 +284,17 @@ export default function ContasReceber() {
         </div>
       </div>
 
+      {erroCarregamento && (
+        <div role="alert" className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-foreground">Não foi possível carregar as contas a receber. Os dados abaixo podem estar desatualizados.</p>
+          <Button variant="outline" onClick={carregarDados} className="w-full sm:w-auto">Tentar novamente</Button>
+        </div>
+      )}
+
       <Tabs defaultValue="sugestoes" className="w-full">
         <TabsList className="mb-6 bg-card border border-border shadow-sm">
           <TabsTrigger value="sugestoes" className="data-[state=active]:bg-orange-500/10 data-[state=active]:text-orange-700 dark:data-[state=active]:text-orange-400">
-            <AlertCircle className="w-4 h-4 mr-2" /> Para Cobrar Hoje ({sugestoes.length})
+            <AlertCircle className="w-4 h-4 mr-2" /> Para Cobrar Hoje ({erroCarregamento ? '—' : sugestoes.length})
           </TabsTrigger>
           <TabsTrigger
             value="todas"
@@ -300,6 +315,8 @@ export default function ContasReceber() {
             <CardContent className="pt-6">
               {loading ? (
                 <div className="text-center py-10 text-muted-foreground">A carregar...</div>
+              ) : erroCarregamento ? (
+                <div className="text-center py-10 text-muted-foreground">Não foi possível confirmar se há clientes para cobrar.</div>
               ) : sugestoes.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground">
                   <CheckCircle className="w-12 h-12 mx-auto text-green-400/60 mb-3" />
@@ -312,12 +329,12 @@ export default function ContasReceber() {
                     <Card key={conta.id} className="border border-border overflow-hidden hover:shadow-md transition-shadow">
                       <div className={`h-2 w-full ${conta.status === 'ATRASADO' ? 'bg-red-500' : 'bg-orange-400'}`}></div>
                       <CardContent className="p-5">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h3 className="font-bold text-lg text-foreground">{conta.nomeCliente}</h3>
-                            <p className="text-sm text-muted-foreground">{conta.descricao}</p>
+                        <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="break-words font-bold text-lg text-foreground" title={conta.nomeCliente}>{conta.nomeCliente}</h3>
+                            <p className="truncate text-sm text-muted-foreground" title={conta.descricao}>{conta.descricao}</p>
                           </div>
-                          <span className="font-black text-xl text-red-600 dark:text-red-400">R$ {conta.valor.toFixed(2)}</span>
+                          <span className="shrink-0 font-black text-lg sm:text-xl text-red-600 dark:text-red-400">R$ {conta.valor.toFixed(2)}</span>
                         </div>
                         <div className="text-sm text-muted-foreground mb-4 bg-muted p-2 rounded flex justify-between items-center">
                           <p>Venceu em: <strong className="text-foreground">{formatarData(conta.dataVencimento)}</strong></p>
@@ -376,12 +393,17 @@ export default function ContasReceber() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {contasFiltradas.length === 0 ? (
+                    {erroCarregamento ? (
+                      <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Os dados das contas não estão disponíveis.</TableCell></TableRow>
+                    ) : contasFiltradas.length === 0 ? (
                       <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Nenhum registro encontrado.</TableCell></TableRow>
                     ) : (
                       contasFiltradas.map(conta => (
                         <TableRow key={conta.id} className={conta.status === 'PAGO' ? 'opacity-60 bg-muted' : ''}>
-                          <TableCell className="font-medium">{conta.nomeCliente}<br/><span className="text-xs text-muted-foreground">{conta.telefoneCliente || 'sem telefone'}</span></TableCell>
+                          <TableCell className="max-w-[220px] font-medium">
+                            <span className="block truncate" title={conta.nomeCliente}>{conta.nomeCliente}</span>
+                            <span className="block truncate text-xs text-muted-foreground" title={conta.telefoneCliente || 'sem telefone'}>{conta.telefoneCliente || 'sem telefone'}</span>
+                          </TableCell>
                           <TableCell className="max-w-[200px] truncate text-sm">{conta.descricao}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {conta.status === 'PAGO' ? '—' : formatarData(conta.dataProximaCobranca)}
