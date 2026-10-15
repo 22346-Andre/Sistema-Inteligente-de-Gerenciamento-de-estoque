@@ -25,6 +25,11 @@ import { toast } from 'sonner';
 import api, { extrairMensagemErro } from '../services/api';
 import { useAuth } from '../contexts/auth-context';
 import {
+  Tooltip as UiTooltip,
+  TooltipContent as UiTooltipContent,
+  TooltipTrigger as UiTooltipTrigger,
+} from '../components/ui/tooltip';
+import {
   ResponsiveContainer,
   BarChart,
   Bar,
@@ -550,50 +555,55 @@ export default function SugestoesCompra() {
                         </TableCell>
 
                         <TableCell>
-                          {/* Tooltip de explicabilidade — "Por que comprar?" */}
-                          <div className="relative group inline-block" tabIndex={0} role="group" aria-label={`Prioridade ${sugestao.grauUrgencia} de 100. Foque para ver os fatores de urgência.`}>
-                            <div className="flex items-center gap-2 w-28 cursor-help">
-                              <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                                <div
-                                  className="h-full rounded-full transition-all duration-500"
-                                  style={{
-                                    width: `${sugestao.grauUrgencia}%`,
-                                    backgroundColor: corPrioridade(sugestao.grauUrgencia),
-                                  }}
-                                />
+                          <UiTooltip>
+                            <UiTooltipTrigger asChild>
+                              <div tabIndex={0} aria-label={`Prioridade ${sugestao.grauUrgencia} de 100. Foque para ver os fatores de urgência.`} className="inline-block">
+                                <div className="flex items-center gap-2 w-28 cursor-help">
+                                  <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full transition-all duration-500"
+                                      style={{
+                                        width: `${sugestao.grauUrgencia}%`,
+                                        backgroundColor: corPrioridade(sugestao.grauUrgencia),
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-xs font-medium text-muted-foreground w-7 text-right">
+                                    {sugestao.grauUrgencia.toFixed(0)}
+                                  </span>
+                                </div>
                               </div>
-                              <span className="text-xs font-medium text-muted-foreground w-7 text-right">
-                                {sugestao.grauUrgencia.toFixed(0)}
-                              </span>
-                            </div>
-
-                            <div role="tooltip" className="invisible group-hover:visible group-focus-within:visible opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150 absolute z-20 left-0 top-full mt-2 w-60 rounded-lg bg-gray-900 text-white text-xs p-3 shadow-lg pointer-events-none">
+                            </UiTooltipTrigger>
+                            <UiTooltipContent side="top" align="start" collisionPadding={12} className="max-w-[min(18rem,calc(100vw-1.5rem))] whitespace-normal break-words p-3 text-left">
                               <p className="font-semibold mb-1.5">Por que comprar?</p>
-                              <ul className="space-y-1 text-gray-200">
-                                <li>📦 Estoque: <b className="text-white">{sugestao.nivelEstoqueLabel}</b> ({sugestao.quantidadeAtual} un.)</li>
-                                <li>🔄 Giro: <b className="text-white">{sugestao.giroVendasLabel}</b> ({sugestao.giroVendas} un./mês)</li>
-                                <li>🚚 Fornecedor: <b className="text-white">{sugestao.prazoEntregaLabel}</b> ({sugestao.prazoEntregaDias} dias)</li>
+                              <ul className="space-y-1">
+                                <li>📦 Estoque: <b>{sugestao.nivelEstoqueLabel}</b> ({sugestao.quantidadeAtual} un.)</li>
+                                <li>🔄 Giro: <b>{sugestao.giroVendasLabel}</b> ({sugestao.giroVendas} un./mês)</li>
+                                <li>🚚 Fornecedor: <b>{sugestao.prazoEntregaLabel}</b> ({sugestao.prazoEntregaDias} dias)</li>
                                 {sugestao.urgenciaOrigem === 'RUPTURA' && (
-                                  <li>🚨 <b className="text-white">Ruptura:</b> item classe {sugestao.classeAbc} sem estoque — prioridade elevada.</li>
+                                  <li>🚨 <b>Ruptura:</b> item classe {sugestao.classeAbc} sem estoque — prioridade elevada.</li>
                                 )}
                               </ul>
-                            </div>
-                          </div>
+                            </UiTooltipContent>
+                          </UiTooltip>
                         </TableCell>
 
                         <TableCell className="max-w-[240px] truncate font-medium" title={sugestao.nomeProduto}>{sugestao.nomeProduto}</TableCell>
                         <TableCell className="text-right font-medium text-red-600">{sugestao.quantidadeAtual}</TableCell>
                         <TableCell className="text-right font-bold text-blue-600">
-                          {/* Tooltip — "Por que essa quantidade?" */}
-                          <div className="relative group inline-block cursor-help" tabIndex={0} role="group" aria-label={`Quantidade sugerida: ${sugestao.quantidadeSugerida}`}>
-                            {sugestao.quantidadeSugerida}
+                          <UiTooltip>
+                            <UiTooltipTrigger asChild>
+                              <span tabIndex={0} aria-label={`Quantidade sugerida: ${sugestao.quantidadeSugerida}`} className="cursor-help">
+                                {sugestao.quantidadeSugerida}
+                              </span>
+                            </UiTooltipTrigger>
                             {sugestao.quantidadeSugeridaMotivo && (
-                              <div role="tooltip" className="invisible group-hover:visible group-focus-within:visible opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150 absolute z-20 right-0 top-full mt-2 w-64 rounded-lg bg-gray-900 text-white text-xs font-normal text-left p-3 shadow-lg pointer-events-none">
+                              <UiTooltipContent side="top" align="end" collisionPadding={12} className="max-w-[min(18rem,calc(100vw-1.5rem))] whitespace-normal break-words p-3 text-left font-normal">
                                 <p className="font-semibold mb-1.5">Por que essa quantidade?</p>
-                                <p className="text-gray-200">{sugestao.quantidadeSugeridaMotivo}</p>
-                              </div>
+                                <p>{sugestao.quantidadeSugeridaMotivo}</p>
+                              </UiTooltipContent>
                             )}
-                          </div>
+                          </UiTooltip>
                         </TableCell>
                         <TableCell className="text-right font-medium">{formatBRL(sugestao.valorTotal)}</TableCell>
                       </TableRow>
