@@ -1,7 +1,7 @@
 
 
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { TrendingUp, Package, AlertCircle, DollarSign, Lock, CheckCircle, PieChart, AlertTriangle, Snowflake, Flame, Loader2, Settings2, Check, X, Info, Scale } from 'lucide-react';
@@ -119,14 +119,20 @@ export default function Dashboard() {
   const [valorEditandoDias, setValorEditandoDias] = useState('90');
   const [salvandoDias, setSalvandoDias] = useState(false);
  
+  const montado = useRef(true);
+
   useEffect(() => {
+    montado.current = true;
     carregarDados();
+    return () => {
+      montado.current = false;
+    };
   }, []);
  
   const carregarDados = async () => {
     setLoading(true);
  
-    
+    if (!montado.current) return;
     try {
       const resumoGeral = await dashboardService.obterResumoGeral();
       setStats((prev) => ({
@@ -136,11 +142,12 @@ export default function Dashboard() {
       }));
       setErroResumo(false);
     } catch (error: any) {
+      if (!montado.current) return;
       setErroResumo(true);
       toast.error(extrairMensagemErro(error, 'Erro ao carregar o resumo do estoque.'));
     }
  
-    
+    if (!montado.current) return;
     try {
       const financeiro = await dashboardService.obterEstatisticasFinanceiras();
       setStats((prev) => ({
@@ -150,6 +157,7 @@ export default function Dashboard() {
       }));
       setErroFinanceiro(false);
     } catch (error: any) {
+      if (!montado.current) return;
       if (error.response && (error.response.status === 400 || error.response.status === 403)) {
         setAcessoFinanceiroNegado(true);
       } else {
@@ -158,23 +166,28 @@ export default function Dashboard() {
       }
     }
  
+    if (!montado.current) return;
     try {
       const listaProdutos = await produtoService.listarTodos();
       setTodosProdutos(listaProdutos);
     } catch (error) {
+      if (!montado.current) return;
       toast.error(extrairMensagemErro(error, 'Erro ao carregar os produtos do estoque.'));
     }
 
+    if (!montado.current) return;
     try {
       const produtosCriticos = await produtoService.listarCriticos();
       setProdutosBaixoEstoque(produtosCriticos);
       setErroProdutosCriticos(false);
     } catch (error) {
+      if (!montado.current) return;
       setErroProdutosCriticos(true);
       toast.error(extrairMensagemErro(error, 'Não foi possível verificar os produtos críticos.'));
     }
  
     // Prejuízo por perdas (QUEBRA_PERDA) dos últimos 3 meses.
+    if (!montado.current) return;
     try {
       const resMovs = await api.get('/movimentacoes');
       const perdas = resMovs.data.filter((m: any) => m.tipo === 'QUEBRA_PERDA');
@@ -212,11 +225,13 @@ export default function Dashboard() {
       setDadosGraficoPerdas(janela.map(({ chave, label }) => ({ mes: label, valor: perdasPorChave[chave] })));
       setErroPerdas(false);
     } catch (error) {
+      if (!montado.current) return;
       setErroPerdas(true);
       toast.error(extrairMensagemErro(error, 'Não foi possível carregar o gráfico de perdas.'));
     }
  
     // Dinheiro Congelado: produtos parados há mais de N dias sem venda
+    if (!montado.current) return;
     try {
       const resEstoqueMorto = await api.get('/estoque-morto');
       setEstoqueMorto(resEstoqueMorto.data.itens ?? []);
@@ -226,6 +241,7 @@ export default function Dashboard() {
       setValorEditandoDias(String(dias));
       setErroEstoqueMorto(false);
     } catch (error: any) {
+      if (!montado.current) return;
       if (error.response && (error.response.status === 400 || error.response.status === 403)) {
         setAcessoEstoqueMortoNegado(true);
       } else {
@@ -234,6 +250,7 @@ export default function Dashboard() {
       }
     }
  
+    if (!montado.current) return;
     setLoading(false);
   };
  

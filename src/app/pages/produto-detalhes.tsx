@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { ArrowLeft, Package, ShoppingCart, Edit, FileText, AlertTriangle, ArrowRightLeft, Scale, Clock, Plus, Trash2, TrendingDown } from 'lucide-react';
@@ -320,6 +320,7 @@ export default function ProdutoDetalhes() {
             <DialogTitle className="text-destructive flex items-center gap-2">
               <AlertTriangle className="h-5 w-5" /> Registar Quebra / Perda
             </DialogTitle>
+            <DialogDescription>Informe a quantidade perdida e o motivo para registrar a baixa do estoque.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm border border-destructive/20">
@@ -360,7 +361,10 @@ export default function ProdutoDetalhes() {
 
       <Dialog open={dialogEditOpen} onOpenChange={setDialogEditOpen}>
         <DialogContent className="max-w-2xl bg-card text-card-foreground border-border">
-          <DialogHeader><DialogTitle>Editar Informações</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Editar Informações</DialogTitle>
+            <DialogDescription>Altere os dados do produto e salve.</DialogDescription>
+          </DialogHeader>
           {produtoEditando && (
             <div className="grid grid-cols-2 gap-4 py-4">
               <div className="space-y-2 col-span-2"><Label>Nome do Produto</Label><Input className="bg-background" value={produtoEditando.nome} onChange={e => setProdutoEditando({...produtoEditando, nome: e.target.value})} /></div>
@@ -693,6 +697,7 @@ export default function ProdutoDetalhes() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Adicionar Lote — {produto?.nome}</DialogTitle>
+            <DialogDescription>Informe os dados do novo lote que será adicionado ao estoque.</DialogDescription>
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-4">
