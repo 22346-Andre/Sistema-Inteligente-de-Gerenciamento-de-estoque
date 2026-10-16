@@ -53,6 +53,11 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const url = error.config?.url || '';
+    // Checagem de sessão: 401 aqui só significa "ainda não logou", não "sessão expirada"
+    if (url.includes('/usuarios/me') && error.response?.status === 401) {
+      return Promise.reject(error);
+    }
+
     const isRotaRestrita = url.includes('/estatisticas') || url.includes('/usuarios');
     const isAcessoNegado = error.response && (error.response.status === 400 || error.response.status === 403);
     if (isRotaRestrita && isAcessoNegado) return Promise.reject(error);
@@ -68,10 +73,10 @@ api.interceptors.response.use(
     if (error.response) {
       switch (error.response.status) {
         case 401:
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          toast.error('Sessão expirada. Faça login novamente.');
-          window.location.href = '/login';
+          if (window.location.pathname !== '/login') {
+            toast.error('Sessão expirada. Faça login novamente.');
+            window.location.href = '/login';
+          }
           break;
         case 403:
           toast.error('Você não tem permissão para realizar esta ação.');
