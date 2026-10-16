@@ -24,14 +24,12 @@ export interface RegistroEmpresaDTO {
 }
 
 export const authService = {
-  async login(data: LoginRequest): Promise<LoginResponse> {
-    const response = await api.post('/auth/login', data);
-    return response.data;
+  async login(data: LoginRequest): Promise<void> {
+    await api.post<LoginResponse>('/auth/login', data);
   },
 
-  async loginComGoogle(googleToken: string) {
-    const response = await api.post('/auth/login/google', { token: googleToken });
-    return response.data;
+  async loginComGoogle(googleToken: string): Promise<void> {
+    await api.post<LoginResponse>('/auth/login/google', { token: googleToken });
   },
 
   async registrarEmpresa(data: RegistroEmpresaDTO): Promise<string> {
@@ -50,13 +48,12 @@ export const authService = {
     return response.data;
   },
 
-  logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  async logout(): Promise<void> {
+    await api.post<void>('/auth/logout');
   },
 
   async getMe() {
     const response = await api.get('/usuarios/me');
     return response.data;
-  }
+  },
 };

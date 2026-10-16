@@ -11,6 +11,7 @@ vi.mock('../services/auth.service', () => ({
     registrarEmpresa: vi.fn(),
     confirmarCadastro: vi.fn(),
     reenviarCodigoCadastro: vi.fn(),
+    logout: vi.fn(),
     getMe: vi.fn(),
   },
 }));
@@ -23,11 +24,13 @@ describe('AuthContext', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    vi.mocked(authService.getMe).mockRejectedValue(new Error('Sem sessão'));
+    vi.mocked(authService.logout).mockResolvedValue();
   });
 
-  it('limpa uma sessão corrompida e encerra o carregamento', async () => {
-    localStorage.setItem('token', 'jwt-corrompido');
-    localStorage.setItem('user', '{json inválido');
+  it('remove a autenticação legada e encerra o carregamento sem sessão', async () => {
+    localStorage.setItem('token', 'jwt-legado');
+    localStorage.setItem('user', JSON.stringify({ id: '12' }));
 
     const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -36,10 +39,11 @@ describe('AuthContext', () => {
     expect(result.current.isAuthenticated).toBe(false);
     expect(localStorage.getItem('token')).toBeNull();
     expect(localStorage.getItem('user')).toBeNull();
+    expect(authService.getMe).toHaveBeenCalledOnce();
   });
 
-  it('persiste e disponibiliza o usuário após login', async () => {
-    vi.mocked(authService.login).mockResolvedValue({ accessToken: 'jwt-valido', expiresIn: 3600 });
+  it('disponibiliza o usuário após login sem persistir o JWT retornado pelo backend', async () => {
+    vi.mocked(authService.login).mockResolvedValue();
     vi.mocked(authService.getMe).mockResolvedValue({
       id: 12,
       nome: 'Ana',
@@ -61,10 +65,19 @@ describe('AuthContext', () => {
       nomeFantasia: 'Mercado Central',
       role: 'ADMIN',
     });
-    expect(localStorage.getItem('token')).toBe('jwt-valido');
+    expect(localStorage.getItem('token')).toBeNull();
+    expect(localStorage.getItem('user')).toBeNull();
   });
 
-  it('habilita sessão autenticada pelo cookie mesmo sem token em localStorage', async () => {
+  it('recupera a sessão do cookie HttpOnly pelo endpoint de perfil após recarregar', async () => {
+    localStorage.setItem('token', 'jwt-legado');
+    localStorage.setItem('user', JSON.stringify({
+      id: 'antigo',
+      nome: 'Usuário antigo',
+      email: 'antigo@example.com',
+      nomeFantasia: 'Empresa antiga',
+    }));
+
     vi.mocked(authService.getMe).mockResolvedValue({
       id: 21,
       nome: 'Bruno',
@@ -72,8 +85,6 @@ describe('AuthContext', () => {
       empresa: { nomeFantasia: 'Loja do Bruno' },
       perfil: 'USER',
     });
-
-    document.cookie = 'access_token=jwt-cookie; path=/';
 
     const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -85,7 +96,29 @@ describe('AuthContext', () => {
       nomeFantasia: 'Loja do Bruno',
       role: 'USER',
     });
+    expect(authService.getMe).toHaveBeenCalledOnce();
+    expect(localStorage.getItem('token')).toBeNull();
+    expect(localStorage.getItem('user')).toBeNull();
+  });
 
-    document.cookie = 'access_token=; Max-Age=0; path=/';
+  it('revoga a sessão no backend e limpa o estado local ao sair', async () => {
+    vi.mocked(authService.getMe).mockResolvedValue({
+      id: 21,
+      nome: 'Bruno',
+      email: 'bruno@example.com',
+      empresa: { nomeFantasia: 'Loja do Bruno' },
+      perfil: 'USER',
+    });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+    await act(async () => result.current.logout());
+
+    expect(authService.logout).toHaveBeenCalledOnce();
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.user).toBeNull();
+    expect(localStorage.getItem('token')).toBeNull();
+    expect(localStorage.getItem('user')).toBeNull();
   });
 });

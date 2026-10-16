@@ -15,6 +15,7 @@ import { useTheme } from '../contexts/theme-context'; //
 import { VoiceCommandsHelp } from './voice-commands-help';
 import { useVoiceCommand } from '../hooks/useVoiceCommand';
 import { produtoService, Produto } from '../services/produto.service';
+import { toast } from 'sonner';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -172,7 +173,14 @@ export function Header({ onMenuClick }: HeaderProps) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-border" />
-            <DropdownMenuItem onClick={logout} className="text-destructive cursor-pointer font-medium hover:bg-destructive/10">
+            <DropdownMenuItem
+              onClick={() => {
+                void logout().catch(() => {
+                  toast.error('Não foi possível confirmar o encerramento da sessão. Verifique sua conexão.');
+                });
+              }}
+              className="text-destructive cursor-pointer font-medium hover:bg-destructive/10"
+            >
               <LogOut className="mr-2 h-4 w-4" />
               Sair do Sistema
             </DropdownMenuItem>

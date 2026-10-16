@@ -13,30 +13,6 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-function readTokenFromStorage(): string | null {
-  if (typeof window === 'undefined') return null;
-
-  try {
-    const storedToken = localStorage.getItem('token');
-    if (storedToken) return storedToken;
-  } catch {
-    // Ignora falha de leitura do localStorage em navegadores restritivos.
-  }
-
-  try {
-    const cookie = document.cookie
-      .split('; ')
-      .find((entry) => entry.startsWith('token=') || entry.startsWith('access_token='));
-
-    if (!cookie) return null;
-
-    const [, rawValue] = cookie.split('=');
-    return rawValue ? decodeURIComponent(rawValue) : null;
-  } catch {
-    return null;
-  }
-}
-
 // Utilitário único — reaproveite em todas as páginas em vez de reimplementar
 export function extrairMensagemErro(error: any, fallback = 'Erro ao processar requisição.'): string {
   const data = error?.response?.data;
@@ -56,10 +32,20 @@ export function extrairMensagemErro(error: any, fallback = 'Erro ao processar re
 }
 
 api.interceptors.request.use((config) => {
-  const token = readTokenFromStorage();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  config.headers.delete('Authorization');
+
+  const method = config.method?.toLowerCase();
+  if (method && !['get', 'head', 'options'].includes(method)) {
+    return api.get<string>('/auth/csrf').then(({ data: csrfToken }) => {
+      if (typeof csrfToken !== 'string' || !csrfToken.trim()) {
+        throw new Error('O servidor não retornou um token CSRF válido.');
+      }
+
+      config.headers.set('X-XSRF-TOKEN', csrfToken.trim());
+      return config;
+    });
   }
+
   return config;
 }, (error) => Promise.reject(error));
 

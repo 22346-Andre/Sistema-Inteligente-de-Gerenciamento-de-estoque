@@ -2,10 +2,9 @@ import { Navigate, Outlet } from 'react-router';
 import { useAuth } from '../contexts/auth-context';
 
 export function ProtectedRoute() {
-  // O Segurança escuta se o usuário está logado e se o sistema ainda está lendo o disco
   const { isAuthenticated, isLoading } = useAuth();
 
-  // 1. Enquanto estiver lendo o disco, mostra uma tela de carregamento (A Paciência do Segurança)
+  // Aguarda a validação da sessão HttpOnly pelo backend.
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-black">
@@ -14,11 +13,11 @@ export function ProtectedRoute() {
     );
   }
 
-  // 2. Terminou de carregar. Não tem o Token? Chuta pro login!
+  // Sem sessão válida, redireciona para autenticação.
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // 3. Tem o Token? Libera a catraca para o Dashboard!
+  // A sessão validada libera a rota protegida.
   return <Outlet />;
 }

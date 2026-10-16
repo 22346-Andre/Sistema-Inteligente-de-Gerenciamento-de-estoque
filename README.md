@@ -106,8 +106,7 @@ src/
 
 ## 🔐 Autenticação
 
-O login retorna um token JWT, atualmente armazenado no `localStorage` e enviado em `Authorization: Bearer <token>`. Isso mantém a sessão acessível a scripts da página e, portanto, não elimina o risco de XSS. A migração para cookie `HttpOnly` precisa ser feita junto ao backend, incluindo `Secure`/`SameSite`, CORS com credenciais e proteção CSRF; não é possível tornar um cookie `HttpOnly` apenas pelo frontend. O `AuthContext` valida os dados persistidos e remove sessões corrompidas.
-
+O backend mantém a sessão no cookie `access_token` (`HttpOnly`, `Secure` e `SameSite=None`); o frontend não lê nem persiste o JWT retornado no corpo do login. As chamadas Axios usam `withCredentials` e obtêm o token CSRF em `GET /auth/csrf` antes de cada requisição que altera dados, enviando-o em `X-XSRF-TOKEN`. Ao iniciar ou recarregar a aplicação, o `AuthContext` valida a sessão consultando `GET /usuarios/me`; o logout chama `POST /auth/logout` para expirar o cookie no backend.
 ---
 
 ## 📄 Licença

@@ -9,16 +9,6 @@ interface User {
   role?: string; 
 }
 
-function isUser(value: unknown): value is User {
-  if (!value || typeof value !== 'object') return false;
-  const user = value as Record<string, unknown>;
-  return typeof user.id === 'string'
-    && typeof user.nome === 'string'
-    && typeof user.email === 'string'
-    && typeof user.nomeFantasia === 'string'
-    && (user.role === undefined || typeof user.role === 'string');
-}
-
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -29,7 +19,7 @@ interface AuthContextType {
   // etapa 2 do cadastro — confirma o código e, se válido, já loga o usuário
   confirmarCadastro: (email: string, codigo: string, senha: string) => Promise<void>;
   reenviarCodigoCadastro: (email: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isLoading: boolean;
   atualizarUsuarioNoContexto: (novoNome: string) => void; 
 }
@@ -46,30 +36,21 @@ interface CadastroData {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function readStoredUser(): User | null {
-  try {
-    const savedUser = localStorage.getItem('user');
-    if (!savedUser) return null;
-
-    const parsedUser: unknown = JSON.parse(savedUser);
-    if (isUser(parsedUser)) return parsedUser;
-  } catch {
-    // Ignora sessão inválida e limpa logo em seguida.
-  }
-
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  return null;
-}
-
-function clearSessionStorage() {
+function clearLegacyAuthStorage() {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
   localStorage.removeItem('session');
+}
 
-  ['token', 'access_token', 'auth_token'].forEach((cookieName) => {
-    document.cookie = `${cookieName}=; Max-Age=0; path=/; SameSite=Lax`;
-  });
+async function carregarUsuarioAutenticado(): Promise<User> {
+  const dadosReais = await authService.getMe();
+  return {
+    id: String(dadosReais.id),
+    nome: dadosReais.nome,
+    email: dadosReais.email,
+    nomeFantasia: dadosReais.empresa?.nomeFantasia || 'Minha Empresa',
+    role: dadosReais.perfil || 'USER',
+  };
 }
 
 // 👇 OLHA O AuthProvider AQUI! Tudo o que rege o login fica dentro dele.
@@ -79,37 +60,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 🔄 Recupera a sessão ao atualizar a página (F5)
   useEffect(() => {
+    let mounted = true;
+    clearLegacyAuthStorage();
+
     const bootstrapSession = async () => {
       try {
-        const savedUser = readStoredUser();
-        if (savedUser) {
-          setUser(savedUser);
-          return;
-        }
-
-        const hasCookieSession = document.cookie.includes('access_token=') || document.cookie.includes('token=');
-        if (hasCookieSession) {
-          const dadosReais = await authService.getMe();
-          const userReal: User = {
-            id: String(dadosReais.id),
-            nome: dadosReais.nome,
-            email: dadosReais.email,
-            nomeFantasia: dadosReais.empresa?.nomeFantasia || 'Minha Empresa',
-            role: dadosReais.perfil || 'USER',
-          };
-
-          setUser(userReal);
-          localStorage.setItem('user', JSON.stringify(userReal));
-          return;
-        }
+        const userReal = await carregarUsuarioAutenticado();
+        if (mounted) setUser(userReal);
       } catch {
-        clearSessionStorage();
+        clearLegacyAuthStorage();
+        if (mounted) setUser(null);
       } finally {
-        setIsLoading(false);
+        if (mounted) setIsLoading(false);
       }
     };
 
     void bootstrapSession();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // 🔐 Função de Login Normal
@@ -118,23 +88,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const loginRequest: LoginRequest = { email, senha };
       
-      const response = await authService.login(loginRequest);
-      const token = response.accessToken;
-      localStorage.setItem('token', token);
-      
-      const dadosReais = await authService.getMe();
-      
-      const userReal: User = {
-        id: String(dadosReais.id),
-        nome: dadosReais.nome,
-        email: dadosReais.email,
-        nomeFantasia: dadosReais.empresa?.nomeFantasia || 'Minha Empresa',
-        role: dadosReais.perfil || 'USER' 
-      };
-      
+      await authService.login(loginRequest);
+      const userReal = await carregarUsuarioAutenticado();
       setUser(userReal);
-      localStorage.setItem('user', JSON.stringify(userReal));
-      
     } catch (error) {
       throw error;
     } finally {
@@ -146,24 +102,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginComGoogle = async (googleToken: string) => {
     setIsLoading(true);
     try {
-      // 1. Manda o token do Google para o nosso Java e pega o nosso Token
-      const response = await authService.loginComGoogle(googleToken);
-      const token = response.accessToken;
-      localStorage.setItem('token', token);
-      
-      // 2. Busca os dados reais de quem acabou de logar
-      const dadosReais = await authService.getMe();
-      
-      const userReal: User = {
-        id: String(dadosReais.id),
-        nome: dadosReais.nome,
-        email: dadosReais.email,
-        nomeFantasia: dadosReais.empresa?.nomeFantasia || 'Minha Empresa',
-        role: dadosReais.perfil || 'USER'
-      };
-      
+      await authService.loginComGoogle(googleToken);
+      const userReal = await carregarUsuarioAutenticado();
       setUser(userReal);
-      localStorage.setItem('user', JSON.stringify(userReal));
       
     } catch (error) {
       throw error;
@@ -218,9 +159,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   // 🚪 Função de Logout
-  const logout = () => {
-    clearSessionStorage();
-    setUser(null);
+  const logout = async () => {
+    try {
+      await authService.logout();
+    } finally {
+      clearLegacyAuthStorage();
+      setUser(null);
+    }
   };
 
   // ==========================================
@@ -230,7 +175,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       const usuarioAtualizado = { ...user, nome: novoNome };
       setUser(usuarioAtualizado);
-      localStorage.setItem('user', JSON.stringify(usuarioAtualizado));
     }
   };
 
