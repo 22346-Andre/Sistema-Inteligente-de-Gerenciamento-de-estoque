@@ -96,8 +96,11 @@ export default function Dashboard() {
  
   const [produtosBaixoEstoque, setProdutosBaixoEstoque] = useState<Produto[]>([]);
   const [erroProdutosCriticos, setErroProdutosCriticos] = useState(false);
-  const [todosProdutos, setTodosProdutos] = useState<Produto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingResumo, setLoadingResumo] = useState(true);
+  const [loadingFinanceiro, setLoadingFinanceiro] = useState(true);
+  const [loadingCriticos, setLoadingCriticos] = useState(true);
+  const [loadingPerdas, setLoadingPerdas] = useState(true);
+  const [loadingEstoqueMorto, setLoadingEstoqueMorto] = useState(true);
   const [erroResumo, setErroResumo] = useState(false);
   const [erroFinanceiro, setErroFinanceiro] = useState(false);
   
@@ -130,128 +133,98 @@ export default function Dashboard() {
   }, []);
  
   const carregarDados = async () => {
-    setLoading(true);
- 
-    if (!montado.current) return;
-    try {
-      const resumoGeral = await dashboardService.obterResumoGeral();
-      setStats((prev) => ({
-        ...prev,
-        totalProdutos: resumoGeral.totalProdutos,
-        produtosCriticos: resumoGeral.produtosCriticos,
-      }));
-      setErroResumo(false);
-    } catch (error: any) {
-      if (!montado.current) return;
-      setErroResumo(true);
-      toast.error(extrairMensagemErro(error, 'Erro ao carregar o resumo do estoque.'));
-    }
- 
-    if (!montado.current) return;
-    try {
-      const financeiro = await dashboardService.obterEstatisticasFinanceiras();
-      setStats((prev) => ({
-        ...prev,
-        capitalImobilizado: financeiro.capitalImobilizado,
-        giroEstoque: financeiro.giroEstoque,
-      }));
-      setErroFinanceiro(false);
-    } catch (error: any) {
-      if (!montado.current) return;
-      if (error.response && (error.response.status === 400 || error.response.status === 403)) {
-        setAcessoFinanceiroNegado(true);
-      } else {
-        setErroFinanceiro(true);
-        toast.error(extrairMensagemErro(error, 'Erro ao carregar estatísticas financeiras.'));
-      }
-    }
- 
-    if (!montado.current) return;
-    try {
-      const listaProdutos = await produtoService.listarTodos();
-      setTodosProdutos(listaProdutos);
-    } catch (error) {
-      if (!montado.current) return;
-      toast.error(extrairMensagemErro(error, 'Erro ao carregar os produtos do estoque.'));
-    }
+    setLoadingResumo(true);
+    setLoadingFinanceiro(true);
+    setLoadingCriticos(true);
+    setLoadingPerdas(true);
+    setLoadingEstoqueMorto(true);
 
-    if (!montado.current) return;
-    try {
-      const produtosCriticos = await produtoService.listarCriticos();
-      setProdutosBaixoEstoque(produtosCriticos);
-      setErroProdutosCriticos(false);
-    } catch (error) {
-      if (!montado.current) return;
-      setErroProdutosCriticos(true);
-      toast.error(extrairMensagemErro(error, 'Não foi possível verificar os produtos críticos.'));
-    }
- 
-    // Prejuízo por perdas (QUEBRA_PERDA) dos últimos 3 meses.
-    if (!montado.current) return;
-    try {
-      const resMovs = await api.get('/movimentacoes');
-      const perdas = resMovs.data.filter((m: any) => m.tipo === 'QUEBRA_PERDA');
- 
-      // Janela identificada por ANO+mês, não só o nome do mês — senão uma perda de
-      // "Janeiro" do ano passado seria somada junto com "Janeiro" deste ano assim
-      // que o dashboard girasse pra um novo ano, inflando o mês errado no gráfico.
-      const hoje = new Date();
-      const janela = Array.from({ length: 3 }, (_, idx) => {
-        const i = 2 - idx;
-        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-        return { chave: `${d.getFullYear()}-${d.getMonth()}`, label: NOMES_MESES[d.getMonth()] };
-      });
- 
-      const perdasPorChave: { [key: string]: number } = {};
-      janela.forEach(({ chave }) => { perdasPorChave[chave] = 0; });
- 
-      let totalJanela = 0;
- 
-      perdas.forEach((p: any) => {
-        if (!p.dataMovimentacao) return;
-        const custo = p.produto?.precoCusto || 0;
-        const valorPerdido = custo * p.quantidade;
- 
-        const dataPerda = new Date(p.dataMovimentacao);
-        const chave = `${dataPerda.getFullYear()}-${dataPerda.getMonth()}`;
- 
-        if (perdasPorChave[chave] !== undefined) {
-          perdasPorChave[chave] += valorPerdido;
-          totalJanela += valorPerdido;
+    await Promise.allSettled([
+      (async () => {
+        try {
+          const resumoGeral = await dashboardService.obterResumoGeral();
+          if (!montado.current) return;
+          setStats((prev) => ({ ...prev, totalProdutos: resumoGeral.totalProdutos, produtosCriticos: resumoGeral.produtosCriticos }));
+          setErroResumo(false);
+        } catch (error: any) {
+          if (!montado.current) return;
+          setErroResumo(true);
+          toast.error(extrairMensagemErro(error, 'Erro ao carregar o resumo do estoque.'));
+        } finally {
+          if (montado.current) setLoadingResumo(false);
         }
-      });
- 
-      setPrejuizoTotal(totalJanela);
-      setDadosGraficoPerdas(janela.map(({ chave, label }) => ({ mes: label, valor: perdasPorChave[chave] })));
-      setErroPerdas(false);
-    } catch (error) {
-      if (!montado.current) return;
-      setErroPerdas(true);
-      toast.error(extrairMensagemErro(error, 'Não foi possível carregar o gráfico de perdas.'));
-    }
- 
-    // Dinheiro Congelado: produtos parados há mais de N dias sem venda
-    if (!montado.current) return;
-    try {
-      const resEstoqueMorto = await api.get('/estoque-morto');
-      setEstoqueMorto(resEstoqueMorto.data.itens ?? []);
-      setTotalCongelado(resEstoqueMorto.data.totalCongelado ?? 0);
-      const dias = resEstoqueMorto.data.diasConsiderados ?? 90;
-      setDiasConsiderados(dias);
-      setValorEditandoDias(String(dias));
-      setErroEstoqueMorto(false);
-    } catch (error: any) {
-      if (!montado.current) return;
-      if (error.response && (error.response.status === 400 || error.response.status === 403)) {
-        setAcessoEstoqueMortoNegado(true);
-      } else {
-        setErroEstoqueMorto(true);
-        toast.error(extrairMensagemErro(error, 'Não foi possível carregar os produtos sem giro.'));
-      }
-    }
- 
-    if (!montado.current) return;
-    setLoading(false);
+      })(),
+      (async () => {
+        try {
+          const financeiro = await dashboardService.obterEstatisticasFinanceiras();
+          if (!montado.current) return;
+          setStats((prev) => ({ ...prev, capitalImobilizado: financeiro.capitalImobilizado, giroEstoque: financeiro.giroEstoque }));
+          setErroFinanceiro(false);
+        } catch (error: any) {
+          if (!montado.current) return;
+          if (error.response?.status === 400 || error.response?.status === 403) setAcessoFinanceiroNegado(true);
+          else {
+            setErroFinanceiro(true);
+            toast.error(extrairMensagemErro(error, 'Erro ao carregar estatísticas financeiras.'));
+          }
+        } finally {
+          if (montado.current) setLoadingFinanceiro(false);
+        }
+      })(),
+      (async () => {
+        try {
+          const produtosCriticos = await produtoService.listarCriticos();
+          if (!montado.current) return;
+          setProdutosBaixoEstoque(produtosCriticos);
+          setErroProdutosCriticos(false);
+        } catch (error) {
+          if (!montado.current) return;
+          setErroProdutosCriticos(true);
+          toast.error(extrairMensagemErro(error, 'Não foi possível verificar os produtos críticos.'));
+        } finally {
+          if (montado.current) setLoadingCriticos(false);
+        }
+      })(),
+      (async () => {
+        try {
+          const resumo = await dashboardService.obterResumoPerdas(3);
+          if (!montado.current) return;
+          setPrejuizoTotal(resumo.total);
+          setDadosGraficoPerdas(resumo.porMes.map(({ mes, valor }) => {
+            const mesNumero = Number(mes.split('-')[1]);
+            return { mes: NOMES_MESES[mesNumero - 1] ?? mes, valor };
+          }));
+          setErroPerdas(false);
+        } catch (error) {
+          if (!montado.current) return;
+          setErroPerdas(true);
+          toast.error(extrairMensagemErro(error, 'Não foi possível carregar o gráfico de perdas.'));
+        } finally {
+          if (montado.current) setLoadingPerdas(false);
+        }
+      })(),
+      (async () => {
+        try {
+          const resEstoqueMorto = await api.get('/estoque-morto');
+          if (!montado.current) return;
+          setEstoqueMorto(resEstoqueMorto.data.itens ?? []);
+          setTotalCongelado(resEstoqueMorto.data.totalCongelado ?? 0);
+          const dias = resEstoqueMorto.data.diasConsiderados ?? 90;
+          setDiasConsiderados(dias);
+          setValorEditandoDias(String(dias));
+          setErroEstoqueMorto(false);
+        } catch (error: any) {
+          if (!montado.current) return;
+          if (error.response?.status === 400 || error.response?.status === 403) setAcessoEstoqueMortoNegado(true);
+          else {
+            setErroEstoqueMorto(true);
+            toast.error(extrairMensagemErro(error, 'Não foi possível carregar os produtos sem giro.'));
+          }
+        } finally {
+          if (montado.current) setLoadingEstoqueMorto(false);
+        }
+      })(),
+    ]);
   };
  
   const handleSalvarDiasConsiderados = async () => {
@@ -319,7 +292,7 @@ export default function Dashboard() {
   const [erroABC, setErroABC] = useState(false);
 
   useEffect(() => {
-    if (acessoFinanceiroNegado || loading) return;
+    if (acessoFinanceiroNegado) return;
     setCarregandoABC(true);
     setErroABC(false);
     dashboardService.obterCurvaABC(criterioABC, 90)
@@ -331,7 +304,7 @@ export default function Dashboard() {
       })
       .finally(() => setCarregandoABC(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [criterioABC, acessoFinanceiroNegado, loading]);
+  }, [criterioABC, acessoFinanceiroNegado]);
 
   const dadosGraficoABC = useMemo(() => {
     if (curvaAbcItens.length === 0) return [];
@@ -360,7 +333,7 @@ export default function Dashboard() {
   const [erroMatriz, setErroMatriz] = useState(false);
 
   useEffect(() => {
-    if (acessoFinanceiroNegado || loading) return;
+    if (acessoFinanceiroNegado) return;
     setCarregandoMatriz(true);
     setErroMatriz(false);
     dashboardService.obterMatrizAbc(90)
@@ -372,7 +345,7 @@ export default function Dashboard() {
       })
       .finally(() => setCarregandoMatriz(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acessoFinanceiroNegado, loading]);
+  }, [acessoFinanceiroNegado]);
 
   // Só os paradoxos de verdade (A/C ou C/A) interessam nesse card — "ALINHADO"
   // e "MISTO" são o comportamento normal da maioria do catálogo e não
@@ -381,17 +354,6 @@ export default function Dashboard() {
     () => matrizAbcItens.filter((item) => item.quadrante === 'CAMPEAO_DE_VENDAS' || item.quadrante === 'MOTOR_DE_LUCRO'),
     [matrizAbcItens]
   );
- 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-300">Calculando inteligência financeira...</p>
-        </div>
-      </div>
-    );
-  }
  
   return (
     <div className="space-y-6">
@@ -409,6 +371,8 @@ export default function Dashboard() {
           <CardContent>
             {acessoFinanceiroNegado ? (
               <div className="flex items-center text-gray-400 mt-2"><Lock className="h-5 w-5 mr-2" /><span className="text-sm font-medium">Acesso Restrito</span></div>
+            ) : loadingFinanceiro ? (
+              <div className="h-8 w-24 animate-pulse rounded bg-muted mt-1" />
             ) : (
               erroFinanceiro ? (
                 <div role="alert" className="text-sm text-muted-foreground">Dados financeiros indisponíveis.</div>
@@ -428,6 +392,8 @@ export default function Dashboard() {
           <CardContent>
             {acessoFinanceiroNegado ? (
               <div className="flex items-center text-gray-400 mt-2"><Lock className="h-5 w-5 mr-2" /><span className="text-sm font-medium">Acesso Restrito</span></div>
+            ) : loadingFinanceiro ? (
+              <div className="h-8 w-16 animate-pulse rounded bg-muted mt-1" />
             ) : (
               erroFinanceiro ? (
                 <div role="alert" className="text-sm text-muted-foreground">Dados financeiros indisponíveis.</div>
@@ -447,7 +413,7 @@ export default function Dashboard() {
             <Package className="h-4 w-4 text-purple-600 dark:text-purple-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-foreground dark:text-white">{erroResumo ? '—' : stats.totalProdutos}</div>
+            {loadingResumo ? <div className="h-8 w-16 animate-pulse rounded bg-muted" /> : <div className="text-2xl font-black text-foreground dark:text-white">{erroResumo ? '—' : stats.totalProdutos}</div>}
             <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">{erroResumo ? 'Resumo indisponível' : 'Itens cadastrados'}</p>
           </CardContent>
         </Card>
@@ -458,7 +424,7 @@ export default function Dashboard() {
             <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-red-600 dark:text-red-400">{erroResumo ? '—' : stats.produtosCriticos}</div>
+            {loadingResumo ? <div className="h-8 w-16 animate-pulse rounded bg-muted" /> : <div className="text-2xl font-black text-red-600 dark:text-red-400">{erroResumo ? '—' : stats.produtosCriticos}</div>}
             <p className="text-xs text-muted-foreground dark:text-gray-400 font-medium mt-1">{erroResumo ? 'Resumo indisponível' : 'Estoque crítico / baixo'}</p>
           </CardContent>
         </Card>

@@ -29,7 +29,14 @@ export const dashboardService = {
     return response.data as { data: string; entradas: number; saidas: number }[];
   },
 
-  
+  async obterResumoPerdas(meses: number = 3) {
+    const response = await api.get('/movimentacoes/perdas/resumo', { params: { meses } });
+    return response.data as {
+      total: number;
+      porMes: { mes: string; valor: number }[];
+    };
+  },
+
   async obterCurvaABC(criterio: 'faturamento' | 'lucratividade' | 'capital-imobilizado' = 'faturamento', dias: number = 90) {
     const response = await api.get('/estatisticas/curva-abc', { params: { criterio, dias } });
     return response.data as {
